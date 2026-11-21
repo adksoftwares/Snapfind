@@ -28,6 +28,12 @@ const { revokeUserSessions } = require("../security");
 
 const VALID_STATUSES = new Set(["active", "paused", "archived"]);
 
+function isValidFaceDescriptor(value) {
+  return Array.isArray(value) &&
+    value.length === 128 &&
+    value.every((n) => typeof n === "number" && Number.isFinite(n) && n >= -2 && n <= 2);
+}
+
 function sanitizeEvent(e) {
   if (!e) return null;
   const { pin_hash, ...rest } = e;
@@ -96,21 +102,12 @@ async function cleanupTempFiles(files = []) {
 
 async function getStudioStorage(db, config, studioId, fallbackOwnerId) {
   const studio = studioId
-    ? await db.get("SELECT storage_limit_bytes FROM studios WHERE id = ?", studioId)
+    ? await db.get("SELECT storage_limit_bytes, storage_used_bytes FROM studios WHERE id = ?", studioId)
     : null;
   const limitBytes = Number(studio?.storage_limit_bytes || config.maxStorageBytesPerUser);
-
-  const row = studioId
-    ? await db.get(
-        "SELECT COALESCE(SUM(storage_used_bytes), 0) AS total FROM users WHERE studio_id = ?",
-        studioId
-      )
-    : await db.get(
-        "SELECT COALESCE(storage_used_bytes, 0) AS total FROM users WHERE id = ?",
-        fallbackOwnerId
-      );
-  const usedBytes = Number(row?.total || 0);
-
+  const usedBytes = studioId
+    ? Number(studio?.storage_used_bytes || 0)
+    : Number((await db.get("SELECT storage_used_bytes FROM users WHERE id = ?", fallbackOwnerId))?.storage_used_bytes || 0);
   return { usedBytes, limitBytes };
 }
 
@@ -414,6 +411,13 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
           byteSum,
           e.owner_id
         );
+        if (e.studio_id) {
+          await tx.run(
+            "UPDATE studios SET storage_used_bytes = MAX(0, storage_used_bytes - ?) WHERE id = ?",
+            byteSum,
+            e.studio_id
+          );
+        }
       });
 
       eventStatusCache.invalidate(e.id);
@@ -485,12 +489,7 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
             if (fe && fe.indexed === true && Array.isArray(fe.descriptors)) {
               processed.faceIndexed = 1;
               processed.faceDescriptors = fe.descriptors
-                .filter(
-                  (d) =>
-                    Array.isArray(d) &&
-                    d.length === 128 &&
-                    d.every((n) => typeof n === "number" && Number.isFinite(n))
-                )
+                .filter(isValidFaceDescriptor)
                 .slice(0, 100);
             } else {
               processed.faceIndexed = 0;
@@ -516,6 +515,32 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
         let facesIndexedTotal = 0;
 
         await db.tx(async (tx) => {
+          if (req.event.studio_id) {
+            const quotaResult = await tx.run(
+              "UPDATE studios SET storage_used_bytes = storage_used_bytes + ? WHERE id = ? AND storage_used_bytes + ? <= storage_limit_bytes",
+              addedBytes,
+              req.event.studio_id,
+              addedBytes
+            );
+            if (!Number(quotaResult?.changes || 0)) {
+              const quotaError = new Error("Storage quota exceeded after image processing");
+              quotaError.status = 413;
+              throw quotaError;
+            }
+          } else {
+            const quotaResult = await tx.run(
+              "UPDATE users SET storage_used_bytes = storage_used_bytes + ? WHERE id = ? AND storage_used_bytes + ? <= ?",
+              addedBytes,
+              req.event.owner_id,
+              addedBytes,
+              limitBytes
+            );
+            if (!Number(quotaResult?.changes || 0)) {
+              const quotaError = new Error("Storage quota exceeded after image processing");
+              quotaError.status = 413;
+              throw quotaError;
+            }
+          }
           for (const p of savedPhotos) {
             await tx.run(
               `INSERT INTO photos (
@@ -645,11 +670,18 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
     if (!photos.length) return;
     const placeholders = photos.map(() => "?").join(",");
     const bytesByOwner = new Map();
+    const bytesByStudio = new Map();
     for (const p of photos) {
       bytesByOwner.set(
         p.owner_id,
         (bytesByOwner.get(p.owner_id) || 0) + Number(p.total_bytes || 0)
       );
+      if (p.studio_id) {
+        bytesByStudio.set(
+          p.studio_id,
+          (bytesByStudio.get(p.studio_id) || 0) + Number(p.total_bytes || 0)
+        );
+      }
     }
 
     await db.tx(async (tx) => {
@@ -662,6 +694,13 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
           "UPDATE users SET storage_used_bytes = MAX(0, storage_used_bytes - ?) WHERE id = ?",
           freedBytes,
           ownerId
+        );
+      }
+      for (const [studioId, freedBytes] of bytesByStudio.entries()) {
+        await tx.run(
+          "UPDATE studios SET storage_used_bytes = MAX(0, storage_used_bytes - ?) WHERE id = ?",
+          freedBytes,
+          studioId
         );
       }
     });
@@ -720,7 +759,7 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
             req.event.id,
             ...uniqueIds
           )
-        ).map((p) => ({ ...p, owner_id: req.event.owner_id }));
+        ).map((p) => ({ ...p, owner_id: req.event.owner_id, studio_id: req.event.studio_id }));
 
         if (!photos.length) {
           return res.status(404).json({ error: "No matching photos found in this event" });
@@ -798,11 +837,19 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
         (await db.all("SELECT id FROM photos WHERE event_id = ?", req.event.id)).map((r) => r.id)
       );
 
+      const totalDescriptorCount = entries.reduce(
+        (sum, entry) => sum + (Array.isArray(entry?.descriptors) ? entry.descriptors.length : 0),
+        0
+      );
+      if (totalDescriptorCount > 5000) {
+        return res.status(413).json({ error: "Face indexing batch is too large (5,000 descriptors maximum)" });
+      }
+
       let savedDescriptors = 0;
       await db.tx(async (tx) => {
         for (const entry of entries) {
           if (!entry || !validPhotoIds.has(entry.photo_id)) continue;
-          const descriptors = Array.isArray(entry.descriptors) ? entry.descriptors : [];
+          const descriptors = Array.isArray(entry.descriptors) ? entry.descriptors.slice(0, 100) : [];
           await tx.run(
             "DELETE FROM photo_faces WHERE photo_id = ? AND event_id = ?",
             entry.photo_id,
@@ -810,9 +857,7 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
           );
           for (const desc of descriptors) {
             if (
-              Array.isArray(desc) &&
-              desc.length === 128 &&
-              desc.every((n) => typeof n === "number" && Number.isFinite(n))
+              isValidFaceDescriptor(desc)
             ) {
               await tx.run(
                 "INSERT INTO photo_faces (id, photo_id, event_id, descriptor_json) VALUES (?, ?, ?, ?)",
