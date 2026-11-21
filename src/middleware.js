@@ -79,21 +79,9 @@ function ensureCsrf(req) {
 }
 
 function requiresCsrf(req) {
-  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return false;
-  if (req.session?.userId) return true;
-  if (req.session?.pendingMfaUserId) return true;
-  if (req.session?.unlockedEvents && Object.keys(req.session.unlockedEvents).length > 0) {
-    return true;
-  }
-  if (
-    req.path === "/auth/login" ||
-    req.path === "/auth/register" ||
-    req.path === "/auth/logout" ||
-    req.path === "/auth/mfa/verify"
-  ) {
-    return true;
-  }
-  return false;
+  // All state-changing API requests require the session-bound token, including
+  // guest actions on public galleries (not only PIN-unlocked/authenticated flows).
+  return !["GET", "HEAD", "OPTIONS"].includes(req.method);
 }
 
 function verifyCsrf(req, res, next) {

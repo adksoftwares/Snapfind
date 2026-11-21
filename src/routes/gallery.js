@@ -73,6 +73,7 @@ function createGalleryRouter({ db, config, io, limiters }) {
          JOIN users u ON u.id = e.owner_id
          LEFT JOIN studios s ON s.id = e.studio_id
          WHERE e.is_public = 1
+           AND e.pin_hash IS NULL
            AND e.status = 'active'
            AND COALESCE(s.status, 'active') = 'active'
          ORDER BY e.created_at DESC
@@ -136,6 +137,7 @@ function createGalleryRouter({ db, config, io, limiters }) {
         has_pin: Boolean(event.pin_hash),
         ai_enabled: Boolean(event.ai_enabled),
         selfie_only: selfieOnly,
+        face_match_consent: Number(req.session?.faceMatchConsent?.[event.id] || 0) === Number(event.ai_consent_version || 1),
         status: event.status,
       };
 
@@ -299,6 +301,28 @@ function createGalleryRouter({ db, config, io, limiters }) {
     }
   });
 
+  router.post("/gallery/:code/match/consent", limiters.guestAction, async (req, res, next) => {
+    try {
+      const code = String(req.params.code || "").trim().toUpperCase();
+      const event = await getActiveEventByCode(db, code);
+      if (!event) return res.status(404).json({ error: "Gallery unavailable" });
+      if (!(await isEventUnlocked(db, req, event))) {
+        return res.status(403).json({ error: "Gallery PIN required" });
+      }
+      if (!event.ai_enabled) {
+        return res.status(403).json({ error: "AI face discovery is disabled for this event" });
+      }
+      if (!req.session.faceMatchConsent) req.session.faceMatchConsent = {};
+      req.session.faceMatchConsent[event.id] = Number(event.ai_consent_version || 1);
+      return req.session.save((err) => {
+        if (err) return next(err);
+        return res.json({ ok: true, consented: true });
+      });
+    } catch (err) {
+      return next(err);
+    }
+  });
+
   // Ephemeral server-side face matching: client sends ONLY its own selfie vector, never receives others'
   router.post("/gallery/:code/match", limiters.guestAction, async (req, res, next) => {
     try {
@@ -314,6 +338,9 @@ function createGalleryRouter({ db, config, io, limiters }) {
       if (!event.ai_enabled) {
         return res.status(403).json({ error: "AI face discovery is disabled for this event" });
       }
+      if (Number(req.session?.faceMatchConsent?.[event.id] || 0) !== Number(event.ai_consent_version || 1)) {
+        return res.status(403).json({ error: "Guest face-discovery consent is required" });
+      }
 
       const rawList = Array.isArray(req.body?.descriptors)
         ? req.body.descriptors.slice(0, 6)
@@ -325,7 +352,7 @@ function createGalleryRouter({ db, config, io, limiters }) {
         (d) =>
           Array.isArray(d) &&
           d.length === 128 &&
-          d.every((n) => typeof n === "number" && Number.isFinite(n))
+          d.every((n) => typeof n === "number" && Number.isFinite(n) && n >= -2 && n <= 2)
       );
 
       if (!queryDescriptors.length) {
@@ -341,7 +368,7 @@ function createGalleryRouter({ db, config, io, limiters }) {
       for (const r of rows) {
         try {
           const stored = JSON.parse(r.descriptor_json);
-          if (!Array.isArray(stored) || stored.length !== 128) continue;
+          if (!Array.isArray(stored) || stored.length !== 128 || !stored.every((n) => typeof n === "number" && Number.isFinite(n) && n >= -2 && n <= 2)) continue;
           let dist = 1;
           for (const q of queryDescriptors) {
             const d = euclideanDistance(q, stored);
@@ -356,10 +383,9 @@ function createGalleryRouter({ db, config, io, limiters }) {
         }
       }
 
-      const requestedThreshold = Number(req.body?.threshold);
-      const threshold = Number.isFinite(requestedThreshold)
-        ? Math.min(0.68, Math.max(0.45, requestedThreshold))
-        : 0.63;
+      // Keep face matching conservative and server-controlled. Client-adjustable
+      // thresholds can increase false positives and expose unrelated guests' photos.
+      const threshold = 0.58;
       const matches = [];
       for (const [photo_id, distance] of bestByPhoto.entries()) {
         if (distance < threshold) {
@@ -424,6 +450,9 @@ function createGalleryRouter({ db, config, io, limiters }) {
 
       if (req.session?.matchedPhotos?.[event.id]) {
         delete req.session.matchedPhotos[event.id];
+      }
+      if (req.session?.faceMatchConsent?.[event.id]) {
+        delete req.session.faceMatchConsent[event.id];
       }
       return req.session.save((err) => {
         if (err) return next(err);

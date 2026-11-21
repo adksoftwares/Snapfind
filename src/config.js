@@ -8,6 +8,11 @@ const PLACEHOLDER_SECRETS = new Set([
   "CHANGE_THIS_SECRET_BEFORE_DEPLOYMENT_123456",
 ]);
 
+function positiveNumber(value, fallback, minimum = 1) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= minimum ? parsed : fallback;
+}
+
 function resolveSessionSecret(env) {
   const raw = (env.SESSION_SECRET || "").trim();
   if (!PLACEHOLDER_SECRETS.has(raw) && raw.length >= 32) {
@@ -72,17 +77,22 @@ function loadConfig(overrides = {}) {
             ((env.BLOB_STORE_ID || "").trim() && (env.VERCEL_OIDC_TOKEN || "").trim())
         );
 
-  const maxFileSizeMb = Math.max(
-    1,
-    Number(overrides.maxFileSizeMb ?? env.MAX_FILE_SIZE_MB ?? (isVercel ? 4 : 20))
+  const maxFileSizeMb = positiveNumber(
+    overrides.maxFileSizeMb ?? env.MAX_FILE_SIZE_MB ?? (isVercel ? 4 : 20),
+    isVercel ? 4 : 20
   );
-  const maxFilesPerUpload = Math.max(
-    1,
-    Number(overrides.maxFilesPerUpload ?? env.MAX_FILES_PER_UPLOAD ?? 80)
+  const maxFilesPerUpload = Math.floor(positiveNumber(
+    overrides.maxFilesPerUpload ?? env.MAX_FILES_PER_UPLOAD ?? 3,
+    3
+  ));
+  const maxUploadBatchMb = positiveNumber(
+    overrides.maxUploadBatchMb ?? env.MAX_UPLOAD_BATCH_MB ?? (isVercel ? 4 : 60),
+    isVercel ? 4 : 60
   );
-  const maxStorageMbPerUser = Math.max(
-    10,
-    Number(overrides.maxStorageMbPerUser ?? env.MAX_STORAGE_MB_PER_USER ?? 500)
+  const maxStorageMbPerUser = positiveNumber(
+    overrides.maxStorageMbPerUser ?? env.MAX_STORAGE_MB_PER_USER ?? 500,
+    500,
+    10
   );
   const sessionSecret = overrides.sessionSecret || resolveSessionSecret(env);
   const mediaSigningSecret =
@@ -102,6 +112,20 @@ function loadConfig(overrides = {}) {
     overrides.allowMultipleSuperAdmins ?? env.ALLOW_MULTIPLE_SUPER_ADMINS === "true"
   );
   const isProduction = env.NODE_ENV === "production";
+  const resetEmailProvider = String(env.RESET_EMAIL_PROVIDER || "").trim().toLowerCase();
+  const resetEmailConfigured = resetEmailProvider === "resend" && Boolean((env.RESEND_API_KEY || "").trim()) && Boolean((env.RESET_EMAIL_FROM || "").trim());
+  const resetEmailProviderConfig = {
+    provider: resetEmailProvider,
+    resendApiKey: String(env.RESEND_API_KEY || "").trim(),
+    from: String(env.RESET_EMAIL_FROM || "").trim(),
+  };
+  const isProductionVercel = isProduction && isVercel;
+  if (isProductionVercel && !databaseUrl) {
+    throw new Error("DATABASE_URL (managed PostgreSQL) is required for production Vercel deployments; local SQLite is ephemeral.");
+  }
+  if (isProductionVercel && !useBlob) {
+    throw new Error("Vercel Blob storage is required for production Vercel deployments; local filesystem uploads are ephemeral.");
+  }
   const secureCookies =
     env.FORCE_HTTPS_COOKIES === "true" ||
     ((isProduction || isVercel) && baseUrl.startsWith("https://"));
@@ -109,6 +133,9 @@ function loadConfig(overrides = {}) {
   return {
     rootDir,
     isVercel,
+    isProductionVercel,
+    resetEmailConfigured,
+    resetEmailProviderConfig,
     port,
     baseUrl,
     uploadDir,
@@ -119,6 +146,7 @@ function loadConfig(overrides = {}) {
     maxFileSizeMb,
     maxFileSizeBytes: maxFileSizeMb * 1024 * 1024,
     maxFilesPerUpload,
+    maxUploadBatchBytes: maxUploadBatchMb * 1024 * 1024,
     maxStorageMbPerUser,
     maxStorageBytesPerUser: overrides.maxStorageBytesPerUser ?? maxStorageMbPerUser * 1024 * 1024,
     sessionSecret,

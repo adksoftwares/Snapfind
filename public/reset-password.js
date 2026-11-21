@@ -22,6 +22,8 @@ async function api(url, options = {}) {
 }
 
 async function init() {
+  // Remove the one-time token from the address bar before any network request.
+  if (tokenFromUrl) history.replaceState(null, "", "/reset-password.html");
   const c = await api("/api/auth/csrf").catch(() => null);
   if (c?.csrfToken) csrfToken = c.csrfToken;
 
@@ -45,6 +47,7 @@ $("#confirmResetForm").onsubmit = async (e) => {
     });
     setMsg("Password updated. You can now sign in with your new password.", false);
     e.target.reset();
+    e.target.classList.add("hidden");
   } catch (err) {
     setMsg(err.message, true);
   }

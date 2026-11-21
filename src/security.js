@@ -298,14 +298,21 @@ async function createPasswordResetToken(db, userId, initiatedBy = "self", ttlMin
   return { rawToken, expiresAt };
 }
 
-async function consumePasswordResetToken(db, rawToken) {
+async function consumePasswordResetToken(db, rawToken, nowMs = Date.now()) {
   const tokenHash = sha256Hex(String(rawToken || "").trim());
-  const row = await db.get("SELECT * FROM password_resets WHERE token_hash = ?", tokenHash);
-  if (!row || row.used_at || Number(row.expires_at) <= Date.now()) {
-    return null;
-  }
-  await db.run("UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = ?", row.id);
-  return row;
+  return db.tx(async (tx) => {
+    const row = await tx.get("SELECT * FROM password_resets WHERE token_hash = ?", tokenHash);
+    if (!row || row.used_at || Number(row.expires_at) <= nowMs) {
+      return null;
+    }
+    const result = await tx.run(
+      "UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = ? AND used_at IS NULL AND expires_at > ?",
+      row.id,
+      nowMs
+    );
+    if (!Number(result?.changes || 0)) return null;
+    return row;
+  });
 }
 
 module.exports = {

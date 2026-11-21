@@ -426,8 +426,9 @@ async function manageEvent(eventId) {
       <a class="btn ghost" target="_blank" href="/gallery/${encodeURIComponent(e.access_code)}">Open gallery ↗</a>
     </div>
 
-    <p id="manageStatus" class="muted"></p>
-    <p id="manageError" class="error"></p>
+    <p id="manageStatus" class="muted" role="status" aria-live="polite"></p>
+    <progress id="uploadProgress" class="upload-progress hidden" max="100" value="0" aria-label="Photo upload progress"></progress>
+    <p id="manageError" class="error" role="alert"></p>
     <div id="dynamicPanel"></div>
 
     ${
@@ -553,6 +554,9 @@ async function manageEvent(eventId) {
       const files = [...ev.target.files];
       if (!files.length) return;
       $("#manageError").textContent = "";
+      const uploadProgress = $("#uploadProgress");
+      uploadProgress.value = 0;
+      uploadProgress.classList.remove("hidden");
       ev.target.value = "";
 
       const canIndexOnUpload = Boolean(e.ai_enabled && window.SnapFindFace);
@@ -606,6 +610,7 @@ async function manageEvent(eventId) {
               } catch {
                 faceEntries.push({ indexed: false, descriptors: [] });
               }
+              uploadProgress.value = Math.round((overallIdx / files.length) * 50);
             }
           }
 
@@ -613,6 +618,7 @@ async function manageEvent(eventId) {
             fd.append("face_entries", JSON.stringify(faceEntries));
           }
 
+          uploadProgress.value = (canIndexOnUpload ? 50 : 0) + Math.round((processedOffset / files.length) * (canIndexOnUpload ? 50 : 100));
           $("#manageStatus").textContent = `Uploading & saving (${processedOffset + batch.length}/${files.length})…`;
           const result = await api(`/api/events/${encodeURIComponent(eventId)}/photos`, {
             method: "POST",
@@ -622,6 +628,7 @@ async function manageEvent(eventId) {
           indexedFacesTotal += Number(result.faces_indexed_total || 0);
           if (result.rejected?.length) allRejected.push(...result.rejected);
           processedOffset += batch.length;
+          uploadProgress.value = (canIndexOnUpload ? 50 : 0) + Math.round((processedOffset / files.length) * (canIndexOnUpload ? 50 : 100));
         }
 
         await Promise.all([loadDashboard(), manageEvent(eventId)]);

@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const http = require("node:http");
+const crypto = require("node:crypto");
 const path = require("node:path");
 const express = require("express");
 const session = require("express-session");
@@ -47,6 +48,13 @@ function createApp(options = {}) {
   const server = http.createServer(app);
   const io = new Server(server);
 
+  app.use((req, res, next) => {
+    const requestId = crypto.randomUUID();
+    req.requestId = requestId;
+    res.setHeader("X-Request-ID", requestId);
+    next();
+  });
+
   app.set("trust proxy", 1);
 
   app.use(
@@ -70,6 +78,22 @@ function createApp(options = {}) {
   );
 
   app.use(compression());
+
+  // Minimal readiness endpoint for external uptime checks; never expose database details.
+  app.get("/healthz", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    try {
+      await db.ensureReady();
+      await db.get("SELECT 1");
+      return res.status(200).json({ status: "ok", checks: { database: "ok" } });
+    } catch (err) {
+      console.error("[SnapFind] Readiness check failed", {
+        requestId: req.requestId || "unknown",
+        errorName: String(err?.name || "Error").slice(0, 80),
+      });
+      return res.status(503).json({ status: "unavailable", request_id: req.requestId || "unknown" });
+    }
+  });
 
   // Ensure Postgres schema/migrations or SQLite DB ready before serving any route
   app.use(async (req, res, next) => {
@@ -214,22 +238,27 @@ function createApp(options = {}) {
   });
 
   app.use((err, req, res, next) => {
+    const requestId = req.requestId || "unknown";
     if (err instanceof multer.MulterError) {
-      if (err.code === "LIMIT_FILE_SIZE") {
-        return res
-          .status(400)
-          .json({ error: `Image exceeds ${config.maxFileSizeMb} MB upload limit` });
-      }
-      return res.status(400).json({ error: `Upload error: ${err.message}` });
+      const status = ["LIMIT_FILE_SIZE", "LIMIT_FILE_COUNT", "LIMIT_FIELD_COUNT", "LIMIT_PART_COUNT"].includes(err.code) ? 413 : 400;
+      const message = err.code === "LIMIT_FILE_SIZE"
+        ? `Image exceeds ${config.maxFileSizeMb} MB upload limit`
+        : status === 413
+          ? "Upload request exceeds configured limits"
+          : "Upload request could not be processed";
+      return res.status(status).json({ error: message, request_id: requestId });
     }
     if (err?.type === "entity.parse.failed") {
-      return res.status(400).json({ error: "Invalid JSON payload" });
+      return res.status(400).json({ error: "Invalid JSON payload", request_id: requestId });
     }
     if (err?.status && err.status < 500) {
-      return res.status(err.status).json({ error: err.message });
+      return res.status(err.status).json({ error: err.message, request_id: requestId });
     }
-    console.error("[SnapFind] Unexpected server error:", err);
-    return res.status(500).json({ error: "Unexpected server error" });
+    console.error("[SnapFind] Unexpected server error", {
+      requestId,
+      errorName: String(err?.name || "Error").slice(0, 80),
+    });
+    return res.status(500).json({ error: "Unexpected server error", request_id: requestId });
   });
 
   async function close() {

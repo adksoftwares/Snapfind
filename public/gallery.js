@@ -21,6 +21,7 @@ let matchedScoreById = new Map();
 let downloadPickSet = new Set();
 let totalEventPhotos = 0;
 let capturedSelfieBlob = null;
+let faceMatchRequest = null;
 let selfiePreviewObjectUrl = null;
 let cameraStream = null;
 let favouritedSet = new Set();
@@ -264,7 +265,7 @@ function renderPhotos() {
         <article class="gallery-photo ${isPicked ? "is-selected" : ""}">
           <div class="gallery-photo-media">
             <img loading="lazy" src="${esc(p.thumb_url)}" alt="${esc(p.caption || photoTitleFallback(p))}" data-open-lightbox="${esc(p.id)}">
-            ${matchInfo ? `<span class="match-badge">${matchInfo.confidence}% match</span>` : ""}
+            ${matchInfo ? `<span class="match-badge">Approx. similarity ${matchInfo.confidence}/100</span>` : ""}
             <label class="guest-dl-pick" title="Select photo for download">
               <input type="checkbox" class="guest-dl-cb" data-dl-pick="${esc(p.id)}" ${isPicked ? "checked" : ""}>
               <span>Pick</span>
@@ -447,6 +448,9 @@ async function loadGallery(page = 1) {
   const data = await api(`/api/gallery/${encodeURIComponent(code)}?${params.toString()}`);
   if (data.csrfToken) csrfToken = data.csrfToken;
   currentEvent = data.event;
+  const hasFaceConsent = Boolean(currentEvent.face_match_consent);
+  $("#aiConsent").checked = hasFaceConsent;
+  setAiConsentControls(hasFaceConsent);
 
   $("#eventTitle").textContent = currentEvent.title;
   $("#eventMeta").textContent = [currentEvent.event_date, currentEvent.venue]
@@ -659,6 +663,17 @@ $("#guestDownloadSelectedBtn").onclick = async () => {
   }
 };
 
+function setAiConsentControls(enabled) {
+  $("#selfie").disabled = !enabled;
+  $("#aiCameraBtn").disabled = !enabled;
+  $("#aiFind").disabled = !enabled;
+  $("#selfiePickerLabel").classList.toggle("disabled", !enabled);
+  $("#aiMatchOptions").classList.toggle("disabled", !enabled);
+  document.querySelectorAll('#aiMatchOptions input[name="aiOpt"]').forEach((el) => {
+    el.disabled = !enabled;
+  });
+}
+
 function getAiMatchOptions() {
   const checked = new Set(
     [...document.querySelectorAll('#aiMatchOptions input[name="aiOpt"]:checked')].map((el) => el.value)
@@ -670,17 +685,49 @@ function getAiMatchOptions() {
   };
 }
 
-$("#aiConsent").onchange = (e) => {
+$("#aiConsent").onchange = async (e) => {
   const checked = e.target.checked;
-  $("#selfie").disabled = !checked;
-  $("#aiCameraBtn").disabled = !checked;
-  $("#aiFind").disabled = !checked;
-  $("#selfiePickerLabel").classList.toggle("disabled", !checked);
-  $("#aiMatchOptions").classList.toggle("disabled", !checked);
-  document.querySelectorAll('#aiMatchOptions input[name="aiOpt"]').forEach((el) => {
-    el.disabled = !checked;
-  });
-  if (!checked) stopCamera();
+  $("#aiConsent").disabled = true;
+  setAiConsentControls(false);
+  if (checked) {
+    $("#aiStatus").textContent = "Confirming face-discovery consent for this gallery session…";
+    try {
+      await api(`/api/gallery/${encodeURIComponent(code)}/match/consent`, { method: "POST" });
+      setAiConsentControls(true);
+      $("#aiStatus").textContent = "Consent active for this gallery session. You can withdraw it at any time.";
+    } catch (err) {
+      $("#aiConsent").checked = false;
+      $("#aiStatus").textContent = err.message || "Consent could not be enabled. Please try again.";
+    } finally {
+      $("#aiConsent").disabled = false;
+    }
+    return;
+  }
+
+  aiCancelled = true;
+  stopCamera();
+  capturedSelfieBlob = null;
+  $("#selfie").value = "";
+  $("#selfieFileName").textContent = "Upload selfie photo…";
+  showSelfiePreview(null);
+  matchedPhotoIds = null;
+  matchedScoreById = new Map();
+  downloadPickSet.clear();
+  activeFilter = "all";
+  if (currentEvent?.selfie_only) photos = [];
+  $("#aiResetScanBtn").classList.add("hidden");
+  $("#aiStatus").textContent = "Consent withdrawn. Clearing session match results…";
+  renderPhotos();
+  try {
+    const pendingMatch = faceMatchRequest;
+    if (pendingMatch) await pendingMatch.catch(() => {});
+    await api(`/api/gallery/${encodeURIComponent(code)}/match/clear`, { method: "POST" });
+    $("#aiStatus").textContent = "Face discovery consent withdrawn; session match results cleared.";
+  } catch {
+    $("#aiStatus").textContent = "Consent withdrawn locally. Session results could not be cleared right now; close this gallery session to clear them when it expires.";
+  } finally {
+    $("#aiConsent").disabled = false;
+  }
 };
 
 $("#selfie").onchange = (e) => {
@@ -774,7 +821,7 @@ $("#aiFind").onclick = async () => {
     showSelfiePreview(
       query.previewDataUrl,
       `Face analysed (${query.descriptors.length} variant${query.descriptors.length === 1 ? "" : "s"})`,
-      "Matched locally without uploading your selfie."
+      "Selfie image stays on this device; face descriptors are shared securely for server matching."
     );
 
     if (aiCancelled) return;
@@ -784,10 +831,18 @@ $("#aiFind").onclick = async () => {
       window.SnapFindFace.DEFAULT_MATCH_THRESHOLD;
 
     $("#aiStatus").textContent = "Matching against indexed event faces…";
-    const serverMatch = await api(`/api/gallery/${encodeURIComponent(code)}/match`, {
+    const pendingMatch = api(`/api/gallery/${encodeURIComponent(code)}/match`, {
       method: "POST",
       body: JSON.stringify({ descriptors: query.descriptors, threshold }),
     });
+    faceMatchRequest = pendingMatch;
+    let serverMatch;
+    try {
+      serverMatch = await pendingMatch;
+    } finally {
+      faceMatchRequest = null;
+    }
+    if (aiCancelled) return;
 
     const matches = new Set();
     const scores = new Map();
@@ -809,7 +864,7 @@ $("#aiFind").onclick = async () => {
         scores.set(m.photo_id, { distance: m.distance, confidence: m.confidence });
       }
       $("#aiStatus").textContent = matches.size
-        ? `Found ${matches.size} matching photo(s) across ${serverMatch.indexed_count} indexed photos. Your selfie stayed on your device.`
+        ? `Found ${matches.size} matching photo(s) across ${serverMatch.indexed_count} indexed photos. Selfie image stayed on device; descriptors were sent securely.`
         : `No matches found across ${serverMatch.indexed_count} indexed photos. Try ticking all 3 match options above or taking a clearer selfie.`;
     } else if (currentEvent?.selfie_only) {
       photos = [];
@@ -847,8 +902,8 @@ $("#aiFind").onclick = async () => {
         }
       }
       $("#aiStatus").textContent = matches.size
-        ? `Found ${matches.size} matching photo(s) across ${allPhotos.length} event photos. Your selfie was never uploaded.`
-        : `Scanned ${allPhotos.length} photo(s) with no strong match. Try ticking all 3 match options above.`;
+        ? `Found ${matches.size} matching photo(s) across ${allPhotos.length} event photos. Selfie image stayed on device; local matching was used.`
+        : `Scanned ${allPhotos.length} photo(s) with no strong match. Selfie stayed on device; scan was performed locally.`;
     }
 
     matchedPhotoIds = matches;

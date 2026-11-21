@@ -23,6 +23,7 @@ const {
   registerUserSession,
   revokeUserSessions,
   revokeSingleSession,
+  createPasswordResetToken,
   consumePasswordResetToken,
 } = require("../security");
 
@@ -470,8 +471,8 @@ function createAuthRouter({ db, config, limiters }) {
       if (!currentPassword || !(await bcrypt.compare(currentPassword, req.user.password_hash))) {
         return res.status(401).json({ error: "Current password is incorrect" });
       }
-      if (newPassword.length < 6 || newPassword.length > 128) {
-        return res.status(400).json({ error: "New password must be between 6 and 128 characters" });
+      if (newPassword.length < 10 || newPassword.length > 128) {
+        return res.status(400).json({ error: "New password must be between 10 and 128 characters" });
       }
 
       const nextHash = await bcrypt.hash(newPassword, 12);
@@ -512,22 +513,37 @@ function createAuthRouter({ db, config, limiters }) {
   router.post("/auth/password-reset/request", limiters.auth, async (req, res, next) => {
     try {
       const email = String(req.body.email || "").toLowerCase().trim();
-      const user = email ? await db.get("SELECT * FROM users WHERE email = ?", email) : null;
-      if (user && user.status === "active") {
+      const user = email && email.length <= 160 ? await db.get("SELECT * FROM users WHERE email = ?", email) : null;
+      // Keep responses indistinguishable for valid/invalid accounts to prevent enumeration.
+      if (user && user.status === "active" && config.resetEmailConfigured) {
+        try {
+          const { rawToken } = await createPasswordResetToken(db, user.id, "self", 30);
+          const resetUrl = new URL("/reset-password.html", config.baseUrl);
+          resetUrl.searchParams.set("token", rawToken);
+          const { sendPasswordResetEmail } = require("../email");
+          await sendPasswordResetEmail(config, user.email, resetUrl.toString());
+          await recordSecurityEvent(db, req, {
+            userId: user.id, studioId: user.studio_id, email: user.email,
+            eventType: "password.reset_requested", success: true, details: "self_service_email_sent",
+          });
+          await auditLog(db, req, "auth.password_reset_email_sent", "user", user.id, user.email, user.id);
+        } catch (mailErr) {
+          // Never log reset tokens, links, request bodies, or provider response bodies.
+          console.error("[SnapFind] Password reset delivery failed:", String(mailErr?.message || "mail delivery error").slice(0, 180));
+          await recordSecurityEvent(db, req, {
+            userId: user.id, studioId: user.studio_id, email: user.email,
+            eventType: "password.reset_delivery_failed", success: false, details: "provider_delivery_error",
+          });
+        }
+      } else if (user && user.status === "active") {
         await recordSecurityEvent(db, req, {
-          userId: user.id,
-          studioId: user.studio_id,
-          email: user.email,
-          eventType: "password.reset_requested",
-          success: true,
-          details: "self_service_request",
+          userId: user.id, studioId: user.studio_id, email: user.email,
+          eventType: "password.reset_requested", success: false, details: "email_provider_not_configured",
         });
-        await auditLog(db, req, "auth.password_reset_requested", "user", user.id, user.email, user.id);
       }
       return res.json({
         ok: true,
-        message:
-          "If an active account matches that email, contact your platform Super Admin or check your configured mail provider for a reset link.",
+        message: "If an active account matches that email, a password-reset link will be sent when email delivery is configured.",
       });
     } catch (err) {
       return next(err);
@@ -542,8 +558,8 @@ function createAuthRouter({ db, config, limiters }) {
       if (!token) {
         return res.status(400).json({ error: "Reset token is required" });
       }
-      if (newPassword.length < 6 || newPassword.length > 128) {
-        return res.status(400).json({ error: "New password must be between 6 and 128 characters" });
+      if (newPassword.length < 10 || newPassword.length > 128) {
+        return res.status(400).json({ error: "New password must be between 10 and 128 characters" });
       }
 
       const resetRow = await consumePasswordResetToken(db, token);
@@ -557,11 +573,19 @@ function createAuthRouter({ db, config, limiters }) {
       }
 
       const nextHash = await bcrypt.hash(newPassword, 12);
-      await db.run(
-        "UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?",
-        nextHash,
-        user.id
-      );
+      await db.tx(async (tx) => {
+        await tx.run(
+          "UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?",
+          nextHash,
+          user.id
+        );
+        // A successful reset invalidates every other outstanding reset link.
+        await tx.run(
+          "DELETE FROM password_resets WHERE user_id = ? AND id <> ? AND used_at IS NULL",
+          user.id,
+          resetRow.id
+        );
+      });
 
       await revokeUserSessions(db, user.id);
       await recordSecurityEvent(db, req, {
