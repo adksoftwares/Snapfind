@@ -249,6 +249,17 @@ const SQLITE_MIGRATIONS = [
     name: "selfie_only_gallery",
     sql: `ALTER TABLE events ADD COLUMN selfie_only INTEGER NOT NULL DEFAULT 0;`,
   },
+  {
+    version: 4,
+    name: "studio_storage_usage_counter",
+    sql: `
+      ALTER TABLE studios ADD COLUMN storage_used_bytes INTEGER NOT NULL DEFAULT 0;
+      UPDATE studios SET storage_used_bytes = COALESCE((
+        SELECT SUM(p.total_bytes) FROM photos p JOIN events e ON e.id = p.event_id
+        WHERE e.studio_id = studios.id
+      ), 0);
+    `,
+  },
 ];
 
 const PG_SCHEMA_SQL = `
@@ -266,6 +277,7 @@ const PG_SCHEMA_SQL = `
     plan TEXT NOT NULL DEFAULT 'standard' CHECK(plan IN ('free', 'standard', 'pro', 'enterprise')),
     status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'suspended')),
     storage_limit_bytes BIGINT NOT NULL DEFAULT 524288000,
+    storage_used_bytes BIGINT NOT NULL DEFAULT 0,
     notes TEXT DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
@@ -600,7 +612,7 @@ function openPostgresDatabase(databaseUrl) {
       readyPromise = (async () => {
         try {
           const check = await getPool().query(
-            "SELECT 1 FROM schema_migrations WHERE version = 3 LIMIT 1"
+            "SELECT 1 FROM schema_migrations WHERE version = 4 LIMIT 1"
           );
           if (check.rowCount > 0) return;
         } catch {
@@ -617,11 +629,21 @@ function openPostgresDatabase(databaseUrl) {
             "ALTER TABLE events ADD COLUMN IF NOT EXISTS selfie_only INTEGER NOT NULL DEFAULT 0"
           );
           await client.query(
+            "ALTER TABLE studios ADD COLUMN IF NOT EXISTS storage_used_bytes BIGINT NOT NULL DEFAULT 0"
+          );
+          await client.query(
+            `UPDATE studios s SET storage_used_bytes = COALESCE((
+              SELECT SUM(p.total_bytes) FROM photos p JOIN events e ON e.id = p.event_id
+              WHERE e.studio_id = s.id
+            ), 0)`
+          );
+          await client.query(
             `INSERT INTO schema_migrations (version, name)
              VALUES
                (1, 'initial_schema'),
                (2, 'super_admin_and_multi_tenant'),
-               (3, 'selfie_only_gallery')
+               (3, 'selfie_only_gallery'),
+               (4, 'studio_storage_usage_counter')
              ON CONFLICT (version) DO NOTHING`
           );
           await client.query("COMMIT");
