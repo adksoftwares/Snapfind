@@ -96,7 +96,7 @@ function createApp(options = {}) {
   });
 
   // Ensure Postgres schema/migrations or SQLite DB ready before serving any route
-  app.use(async (req, res, next) =>
+  app.use(async (req, res, next) => {
     try {
       await db.ensureReady();
       next();
