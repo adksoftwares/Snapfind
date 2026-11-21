@@ -670,7 +670,7 @@ function getAiMatchOptions() {
   };
 }
 
-$("#aiConsent").onchange = (e) => {
+$("#aiConsent").onchange = async (e) => {
   const checked = e.target.checked;
   $("#selfie").disabled = !checked;
   $("#aiCameraBtn").disabled = !checked;
@@ -680,7 +680,28 @@ $("#aiConsent").onchange = (e) => {
   document.querySelectorAll('#aiMatchOptions input[name="aiOpt"]').forEach((el) => {
     el.disabled = !checked;
   });
-  if (!checked) stopCamera();
+  if (checked) return;
+
+  aiCancelled = true;
+  stopCamera();
+  capturedSelfieBlob = null;
+  $("#selfie").value = "";
+  $("#selfieFileName").textContent = "Upload selfie photo…";
+  showSelfiePreview(null);
+  matchedPhotoIds = null;
+  matchedScoreById = new Map();
+  downloadPickSet.clear();
+  activeFilter = "all";
+  if (currentEvent?.selfie_only) photos = [];
+  $("#aiResetScanBtn").classList.add("hidden");
+  $("#aiStatus").textContent = "Consent withdrawn. Clearing session match results…";
+  renderPhotos();
+  try {
+    await api(`/api/gallery/${encodeURIComponent(code)}/match/clear`, { method: "POST" });
+    $("#aiStatus").textContent = "Face discovery consent withdrawn; session match results cleared.";
+  } catch {
+    $("#aiStatus").textContent = "Consent withdrawn locally. Session results could not be cleared right now; close this gallery session to clear them when it expires.";
+  }
 };
 
 $("#selfie").onchange = (e) => {
@@ -788,6 +809,7 @@ $("#aiFind").onclick = async () => {
       method: "POST",
       body: JSON.stringify({ descriptors: query.descriptors, threshold }),
     });
+    if (aiCancelled) return;
 
     const matches = new Set();
     const scores = new Map();
