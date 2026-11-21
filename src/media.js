@@ -223,7 +223,14 @@ async function processUploadedImage(uploadDirOrConfig, eventId, filePath, origin
       .toFile(thumbPath);
   } catch (err) {
     // Keep failed conversions from accumulating incomplete local media variants.
-    await Promise.all([origPath, previewPath, thumbPath].map((p) => fsp.unlink(p).catch(() => {})));
+    const cleanupResults = await Promise.all(
+      [origPath, previewPath, thumbPath].map((p) => fsp.unlink(p).catch((cleanupErr) => cleanupErr))
+    );
+    if (cleanupResults.some((cleanupErr) => cleanupErr && cleanupErr.code !== "ENOENT")) {
+      console.error("[SnapFind] Partial local image cleanup failed", {
+        errorName: String(err?.name || "Error").slice(0, 80),
+      });
+    }
     throw err;
   }
 
