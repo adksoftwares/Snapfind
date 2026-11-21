@@ -79,8 +79,24 @@ function createApp(options = {}) {
 
   app.use(compression());
 
+  // Minimal readiness endpoint for external uptime checks; never expose database details.
+  app.get("/healthz", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    try {
+      await db.ensureReady();
+      await db.get("SELECT 1");
+      return res.status(200).json({ status: "ok", checks: { database: "ok" } });
+    } catch (err) {
+      console.error("[SnapFind] Readiness check failed", {
+        requestId: req.requestId || "unknown",
+        errorName: String(err?.name || "Error").slice(0, 80),
+      });
+      return res.status(503).json({ status: "unavailable", request_id: req.requestId || "unknown" });
+    }
+  });
+
   // Ensure Postgres schema/migrations or SQLite DB ready before serving any route
-  app.use(async (req, res, next) => {
+  app.use(async (req, res, next) =>
     try {
       await db.ensureReady();
       next();
