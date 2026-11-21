@@ -29,6 +29,32 @@ A self-hostable event photography delivery platform with multi-tenant studio iso
 - Protected galleries are intentionally excluded from the public event directory; share their access code/QR directly with guests.
 - AI face discovery uses a conservative server-controlled matching threshold. Match scores are approximate similarity indicators, not verified identity or calibrated probabilities.
 
+## Backup, recovery & operational safeguards
+
+### Backup policy
+- **PostgreSQL:** schedule managed-provider backups and point-in-time recovery where available. For an additional portable backup, use `pg_dump -Fc` with a restricted backup identity and encrypt the resulting file before moving it off-site.
+- **Vercel Blob:** the database backup does not contain image files. Maintain a separate export/mirror of the `events/<event-id>/originals`, `previews`, and `thumbs` objects, using a private storage identity. Confirm object counts and checksums during backup; do not assume a database backup covers Blob content.
+- **Local/self-hosted:** stop writes before copying the SQLite database and media directory, or use SQLite's online backup facility. Never copy an actively-written SQLite file without a consistent backup procedure.
+- Store backups separately from the application and protect them with encryption, access controls, and retention limits. Do not put backup archives, production database URLs, API keys, or media tokens in Git.
+
+### Recovery checklist
+1. Provision the same supported database and media storage, then restore the database backup.
+2. Restore the corresponding media objects/files so photo rows and referenced variants are available.
+3. Reconfigure the original `SESSION_SECRET`, `MEDIA_SIGNING_SECRET`, `BASE_URL`, database URL, and Blob credentials. Changing signing secrets invalidates existing signed media links.
+4. Confirm the restored database schema migrations are current, verify restored event/photo counts against backup records, and check that a small set of original/preview/thumb objects can be retrieved privately.
+5. Record the recovery outcome and any data-loss window. Schedule periodic restore drills; a backup that has never been restored is not proven recoverable.
+
+### Monitoring and deployment operations
+- Alert on application 5xx spikes, database connection/timeout errors, Blob upload/delete failures, repeated authentication/MFA failures, password-reset delivery failures, and quota rejection trends.
+- Review Super Admin and studio security/audit events for unusual sign-in patterns; restrict log access because events contain IP/device metadata.
+- Keep production dependencies patched, deploy only reviewed commits, require HTTPS, and ensure the production environment has durable database and media storage before enabling traffic.
+- Avoid logging reset tokens, reset links, face descriptor vectors, guest selfies, or full request bodies. Do not share error logs containing personal data publicly.
+
+### Face-discovery data lifecycle
+- The uploaded guest selfie is processed in the browser; the image is not sent to SnapFind. When matching is requested, descriptor vectors are sent securely to the server for comparison and are not persisted as query data.
+- Match results (photo IDs) are held in the server-side session until the guest clears the scan or the session expires.
+- Event photo descriptors are stored while AI face discovery is enabled. Disable AI face discovery or clear indexing to delete descriptors; photo deletion cascades to associated descriptors. Retain event photos and guest selections only for the studio's stated purpose and delete them when no longer needed.
+
 ## Run
 1. Install Node.js 22.5+ (tested on Node 24)
 2. Copy `.env.example` to `.env` and set a strong `SESSION_SECRET` (32+ characters; required in `NODE_ENV=production`), plus optional `MEDIA_SIGNING_SECRET`, `REGISTRATION_INVITE_CODE`, and `SUPER_ADMIN_SETUP_TOKEN`.
