@@ -72,7 +72,9 @@ npm test
 ```
 
 ## AI matching and privacy
-Face matching is opt-in per event and per guest session. Guest selfies are analysed locally on the guest's device (`@vladmandic/face-api` self-hosted under `/vendor/face-api/`) and only the ephemeral 128D matching vector is sent over TLS to `/api/gallery/:code/match`. Disabling AI discovery on an event automatically purges stored face descriptors.
+Face matching is opt-in per event and per guest session. The gallery checkbox obtains server-side session consent before matching is allowed; withdrawing consent clears the session match list and consent marker. Guest selfies are analysed locally on the guest's device (`@vladmandic/face-api` self-hosted under `/vendor/face-api/`) and only the ephemeral 128D matching vector is sent over TLS to `/api/gallery/:code/match`. Disabling AI discovery on an event automatically purges stored face descriptors.
+
+All state-changing API methods require a session-bound CSRF token, including guest actions on public galleries. The public gallery and account recovery pages obtain a token before submitting changes.
 
 ## Self-service password recovery email
 
