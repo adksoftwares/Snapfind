@@ -371,8 +371,12 @@ async function deleteManyPhotoFiles(uploadDirOrConfig, photos) {
     paths.map(async (p) => {
       try {
         await fsp.unlink(p);
-      } catch {
-        // ignore missing files
+      } catch (cleanupErr) {
+        if (cleanupErr?.code !== "ENOENT") {
+          console.error("[SnapFind] Local photo deletion failed", {
+            errorName: String(cleanupErr?.name || "Error").slice(0, 80),
+          });
+        }
       }
     })
   );
@@ -409,7 +413,14 @@ async function deleteEventMediaDir(uploadDirOrConfig, eventId) {
   const target = path.resolve(base, eventId);
   if (!target.startsWith(base + path.sep)) return;
   if (fs.existsSync(target)) {
-    await fsp.rm(target, { recursive: true, force: true });
+    try {
+      await fsp.rm(target, { recursive: true, force: true });
+    } catch (cleanupErr) {
+      console.error("[SnapFind] Local event media cleanup failed", {
+        eventId,
+        errorName: String(cleanupErr?.name || "Error").slice(0, 80),
+      });
+    }
   }
 }
 
