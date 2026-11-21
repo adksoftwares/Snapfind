@@ -26,6 +26,7 @@ async function init() {
   if (c?.csrfToken) csrfToken = c.csrfToken;
 
   if (tokenFromUrl) {
+    history.replaceState(null, "", "/reset-password.html");
     $("#confirmResetForm").classList.remove("hidden");
     $("#resetToken").value = tokenFromUrl;
   } else {

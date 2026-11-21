@@ -44,3 +44,13 @@ npm test
 
 ## AI matching and privacy
 Face matching is opt-in per event and per guest session. Guest selfies are analysed locally on the guest's device (`@vladmandic/face-api` self-hosted under `/vendor/face-api/`) and only the ephemeral 128D matching vector is sent over TLS to `/api/gallery/:code/match`. Disabling AI discovery on an event automatically purges stored face descriptors.
+
+## Self-service password recovery email
+
+Configure Resend:
+- `RESET_EMAIL_PROVIDER=resend`
+- `RESEND_API_KEY` (restricted API key)
+- `RESET_EMAIL_FROM` (verified sender, e.g. `SnapFind <no-reply@your-domain.example>`)
+- Set `BASE_URL` to the public HTTPS origin.
+
+Reset links expire in 30 minutes; token values are stored hashed. Requests return a generic response to avoid account enumeration. Without email configuration no self-service token is created; Super Admin resets remain available. Delivery failures never log reset URLs or token values.

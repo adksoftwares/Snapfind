@@ -102,6 +102,13 @@ function loadConfig(overrides = {}) {
     overrides.allowMultipleSuperAdmins ?? env.ALLOW_MULTIPLE_SUPER_ADMINS === "true"
   );
   const isProduction = env.NODE_ENV === "production";
+  const resetEmailProvider = String(env.RESET_EMAIL_PROVIDER || "").trim().toLowerCase();
+  const resetEmailConfigured = resetEmailProvider === "resend" && Boolean((env.RESEND_API_KEY || "").trim()) && Boolean((env.RESET_EMAIL_FROM || "").trim());
+  const resetEmailProviderConfig = {
+    provider: resetEmailProvider,
+    resendApiKey: String(env.RESEND_API_KEY || "").trim(),
+    from: String(env.RESET_EMAIL_FROM || "").trim(),
+  };
   const isProductionVercel = isProduction && isVercel;
   if (isProductionVercel && !databaseUrl) {
     throw new Error("DATABASE_URL (managed PostgreSQL) is required for production Vercel deployments; local SQLite is ephemeral.");
@@ -117,6 +124,8 @@ function loadConfig(overrides = {}) {
     rootDir,
     isVercel,
     isProductionVercel,
+    resetEmailConfigured,
+    resetEmailProviderConfig,
     port,
     baseUrl,
     uploadDir,
