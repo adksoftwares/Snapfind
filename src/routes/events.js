@@ -706,27 +706,48 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
   });
 
   async function deletePhotosAndUpdateStorage(photos) {
-    if (!photos.length) return;
-    const placeholders = photos.map(() => "?").join(",");
-    const bytesByOwner = new Map();
-    const bytesByStudio = new Map();
-    for (const p of photos) {
-      bytesByOwner.set(
-        p.owner_id,
-        (bytesByOwner.get(p.owner_id) || 0) + Number(p.total_bytes || 0)
-      );
-      if (p.studio_id) {
-        bytesByStudio.set(
-          p.studio_id,
-          (bytesByStudio.get(p.studio_id) || 0) + Number(p.total_bytes || 0)
-        );
-      }
-    }
+    if (!photos.length) return [];
+    const requestedIds = [...new Set(photos.map((p) => p.id).filter(Boolean))];
+    if (!requestedIds.length) return [];
+    const placeholders = requestedIds.map(() => "?").join(",");
+    const eventIds = [...new Set(photos.map((p) => p.event_id).filter(Boolean))].sort();
+    let deletedPhotos = [];
 
     await db.tx(async (tx) => {
+      const eventLockSql = tx.dialect === "postgres"
+        ? "SELECT id FROM events WHERE id = ? FOR UPDATE"
+        : "SELECT id FROM events WHERE id = ?";
+      for (const eventId of eventIds) {
+        await tx.get(eventLockSql, eventId);
+      }
+
+      deletedPhotos = await tx.all(
+        `SELECT p.*, e.owner_id, e.studio_id
+         FROM photos p JOIN events e ON e.id = p.event_id
+         WHERE p.id IN (${placeholders})`,
+        ...requestedIds
+      );
+      if (!deletedPhotos.length) return;
+
+      const bytesByOwner = new Map();
+      const bytesByStudio = new Map();
+      for (const p of deletedPhotos) {
+        bytesByOwner.set(
+          p.owner_id,
+          (bytesByOwner.get(p.owner_id) || 0) + Number(p.total_bytes || 0)
+        );
+        if (p.studio_id) {
+          bytesByStudio.set(
+            p.studio_id,
+            (bytesByStudio.get(p.studio_id) || 0) + Number(p.total_bytes || 0)
+          );
+        }
+      }
+
+      const deletePlaceholders = deletedPhotos.map(() => "?").join(",");
       await tx.run(
-        `DELETE FROM photos WHERE id IN (${placeholders})`,
-        ...photos.map((p) => p.id)
+        `DELETE FROM photos WHERE id IN (${deletePlaceholders})`,
+        ...deletedPhotos.map((p) => p.id)
       );
       for (const [ownerId, freedBytes] of bytesByOwner.entries()) {
         await tx.run(
@@ -744,7 +765,8 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
       }
     });
 
-    await deleteManyPhotoFiles(config, photos);
+    await deleteManyPhotoFiles(config, deletedPhotos);
+    return deletedPhotos;
   }
 
   router.delete("/photos/:id", auth, requirePermission("photos:delete"), async (req, res, next) => {
@@ -764,7 +786,8 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
         return res.status(403).json({ error: "Not your studio's photo" });
       }
 
-      await deletePhotosAndUpdateStorage([photo]);
+      const deleted = await deletePhotosAndUpdateStorage([photo]);
+      if (!deleted.length) return res.status(404).json({ error: "Photo no longer exists" });
       await auditLog(db, req, "photo.deleted", "photo", photo.id, photo.original_name);
       io.to(`event:${photo.event_id}`).emit("photos:removed", { photo_id: photo.id });
 
@@ -804,8 +827,11 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
           return res.status(404).json({ error: "No matching photos found in this event" });
         }
 
-        await deletePhotosAndUpdateStorage(photos);
-        const deletedIds = photos.map((p) => p.id);
+        const deletedPhotos = await deletePhotosAndUpdateStorage(photos);
+        if (!deletedPhotos.length) {
+          return res.status(404).json({ error: "No matching photos remain to delete" });
+        }
+        const deletedIds = deletedPhotos.map((p) => p.id);
         await auditLog(
           db,
           req,
