@@ -258,6 +258,10 @@ const SQLITE_MIGRATIONS = [
         SELECT SUM(p.total_bytes) FROM photos p JOIN events e ON e.id = p.event_id
         WHERE e.studio_id = studios.id
       ), 0);
+      UPDATE users SET storage_used_bytes = COALESCE((
+        SELECT SUM(p.total_bytes) FROM photos p JOIN events e ON e.id = p.event_id
+        WHERE e.owner_id = users.id
+      ), 0);
     `,
   },
 ];
@@ -635,6 +639,12 @@ function openPostgresDatabase(databaseUrl) {
             `UPDATE studios s SET storage_used_bytes = COALESCE((
               SELECT SUM(p.total_bytes) FROM photos p JOIN events e ON e.id = p.event_id
               WHERE e.studio_id = s.id
+            ), 0)`
+          );
+          await client.query(
+            `UPDATE users u SET storage_used_bytes = COALESCE((
+              SELECT SUM(p.total_bytes) FROM photos p JOIN events e ON e.id = p.event_id
+              WHERE e.owner_id = u.id
             ), 0)`
           );
           await client.query(
