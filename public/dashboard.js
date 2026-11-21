@@ -555,7 +555,7 @@ async function manageEvent(eventId) {
       if (!files.length) return;
       $("#manageError").textContent = "";
       const uploadProgress = $("#uploadProgress");
-      uploadProgress.value = 65;
+      uploadProgress.value = 0;
       uploadProgress.classList.remove("hidden");
       ev.target.value = "";
 
@@ -607,10 +607,10 @@ async function manageEvent(eventId) {
               try {
                 const extracted = await window.SnapFindFace.extractEventFaces(f);
                 faceEntries.push({ indexed: true, descriptors: extracted.descriptors });
-                uploadProgress.value = Math.round((overallIdx / files.length) * 65);
               } catch {
                 faceEntries.push({ indexed: false, descriptors: [] });
               }
+              uploadProgress.value = Math.round((overallIdx / files.length) * 65);
             }
           }
 
