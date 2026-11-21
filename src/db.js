@@ -258,6 +258,12 @@ const SQLITE_MIGRATIONS = [
         SELECT SUM(p.total_bytes) FROM photos p JOIN events e ON e.id = p.event_id
         WHERE e.studio_id = studios.id
       ), 0);
+    `,
+  },
+  {
+    version: 5,
+    name: "reconcile_user_storage_usage",
+    sql: `
       UPDATE users SET storage_used_bytes = COALESCE((
         SELECT SUM(p.total_bytes) FROM photos p JOIN events e ON e.id = p.event_id
         WHERE e.owner_id = users.id
@@ -616,7 +622,7 @@ function openPostgresDatabase(databaseUrl) {
       readyPromise = (async () => {
         try {
           const check = await getPool().query(
-            "SELECT 1 FROM schema_migrations WHERE version = 4 LIMIT 1"
+            "SELECT 1 FROM schema_migrations WHERE version = 5 LIMIT 1"
           );
           if (check.rowCount > 0) return;
         } catch {
@@ -642,10 +648,9 @@ function openPostgresDatabase(databaseUrl) {
             ), 0)`
           );
           await client.query(
-            `UPDATE users u SET storage_used_bytes = COALESCE((
-              SELECT SUM(p.total_bytes) FROM photos p JOIN events e ON e.id = p.event_id
-              WHERE e.owner_id = u.id
-            ), 0)`
+            `INSERT INTO schema_migrations (version, name)
+             VALUES (5, 'reconcile_user_storage_usage')
+             ON CONFLICT (version) DO NOTHING`
           );
           await client.query(
             `INSERT INTO schema_migrations (version, name)
@@ -653,7 +658,8 @@ function openPostgresDatabase(databaseUrl) {
                (1, 'initial_schema'),
                (2, 'super_admin_and_multi_tenant'),
                (3, 'selfie_only_gallery'),
-               (4, 'studio_storage_usage_counter')
+               (4, 'studio_storage_usage_counter'),
+               (5, 'reconcile_user_storage_usage')
              ON CONFLICT (version) DO NOTHING`
           );
           await client.query("COMMIT");
