@@ -573,11 +573,19 @@ function createAuthRouter({ db, config, limiters }) {
       }
 
       const nextHash = await bcrypt.hash(newPassword, 12);
-      await db.run(
-        "UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?",
-        nextHash,
-        user.id
-      );
+      await db.tx(async (tx) => {
+        await tx.run(
+          "UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?",
+          nextHash,
+          user.id
+        );
+        // A successful reset invalidates every other outstanding reset link.
+        await tx.run(
+          "DELETE FROM password_resets WHERE user_id = ? AND id <> ? AND used_at IS NULL",
+          user.id,
+          resetRow.id
+        );
+      });
 
       await revokeUserSessions(db, user.id);
       await recordSecurityEvent(db, req, {
