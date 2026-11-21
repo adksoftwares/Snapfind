@@ -571,11 +571,13 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
               facesIndexedTotal += 1;
             }
           }
-          await tx.run(
-            "UPDATE users SET storage_used_bytes = storage_used_bytes + ? WHERE id = ?",
-            addedBytes,
-            req.event.owner_id
-          );
+          if (req.event.studio_id) {
+            await tx.run(
+              "UPDATE users SET storage_used_bytes = storage_used_bytes + ? WHERE id = ?",
+              addedBytes,
+              req.event.owner_id
+            );
+          }
         });
 
         await auditLog(
