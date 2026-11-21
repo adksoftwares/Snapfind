@@ -137,6 +137,7 @@ function createGalleryRouter({ db, config, io, limiters }) {
         has_pin: Boolean(event.pin_hash),
         ai_enabled: Boolean(event.ai_enabled),
         selfie_only: selfieOnly,
+        face_match_consent: Boolean(req.session?.faceMatchConsent?.[event.id]),
         status: event.status,
       };
 
@@ -300,6 +301,28 @@ function createGalleryRouter({ db, config, io, limiters }) {
     }
   });
 
+  router.post("/gallery/:code/match/consent", limiters.guestAction, async (req, res, next) => {
+    try {
+      const code = String(req.params.code || "").trim().toUpperCase();
+      const event = await getActiveEventByCode(db, code);
+      if (!event) return res.status(404).json({ error: "Gallery unavailable" });
+      if (!(await isEventUnlocked(db, req, event))) {
+        return res.status(403).json({ error: "Gallery PIN required" });
+      }
+      if (!event.ai_enabled) {
+        return res.status(403).json({ error: "AI face discovery is disabled for this event" });
+      }
+      if (!req.session.faceMatchConsent) req.session.faceMatchConsent = {};
+      req.session.faceMatchConsent[event.id] = true;
+      return req.session.save((err) => {
+        if (err) return next(err);
+        return res.json({ ok: true, consented: true });
+      });
+    } catch (err) {
+      return next(err);
+    }
+  });
+
   // Ephemeral server-side face matching: client sends ONLY its own selfie vector, never receives others'
   router.post("/gallery/:code/match", limiters.guestAction, async (req, res, next) => {
     try {
@@ -314,6 +337,9 @@ function createGalleryRouter({ db, config, io, limiters }) {
       }
       if (!event.ai_enabled) {
         return res.status(403).json({ error: "AI face discovery is disabled for this event" });
+      }
+      if (!req.session?.faceMatchConsent?.[event.id]) {
+        return res.status(403).json({ error: "Guest face-discovery consent is required" });
       }
 
       const rawList = Array.isArray(req.body?.descriptors)
@@ -424,6 +450,9 @@ function createGalleryRouter({ db, config, io, limiters }) {
 
       if (req.session?.matchedPhotos?.[event.id]) {
         delete req.session.matchedPhotos[event.id];
+      }
+      if (req.session?.faceMatchConsent?.[event.id]) {
+        delete req.session.faceMatchConsent[event.id];
       }
       return req.session.save((err) => {
         if (err) return next(err);
