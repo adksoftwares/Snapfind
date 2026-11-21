@@ -102,6 +102,13 @@ function loadConfig(overrides = {}) {
     overrides.allowMultipleSuperAdmins ?? env.ALLOW_MULTIPLE_SUPER_ADMINS === "true"
   );
   const isProduction = env.NODE_ENV === "production";
+  const isProductionVercel = isProduction && isVercel;
+  if (isProductionVercel && !databaseUrl) {
+    throw new Error("DATABASE_URL (managed PostgreSQL) is required for production Vercel deployments; local SQLite is ephemeral.");
+  }
+  if (isProductionVercel && !useBlob) {
+    throw new Error("Vercel Blob storage is required for production Vercel deployments; local filesystem uploads are ephemeral.");
+  }
   const secureCookies =
     env.FORCE_HTTPS_COOKIES === "true" ||
     ((isProduction || isVercel) && baseUrl.startsWith("https://"));
@@ -109,6 +116,7 @@ function loadConfig(overrides = {}) {
   return {
     rootDir,
     isVercel,
+    isProductionVercel,
     port,
     baseUrl,
     uploadDir,
