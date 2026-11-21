@@ -137,7 +137,7 @@ function createGalleryRouter({ db, config, io, limiters }) {
         has_pin: Boolean(event.pin_hash),
         ai_enabled: Boolean(event.ai_enabled),
         selfie_only: selfieOnly,
-        face_match_consent: Boolean(req.session?.faceMatchConsent?.[event.id]),
+        face_match_consent: Number(req.session?.faceMatchConsent?.[event.id] || 0) === Number(event.ai_consent_version || 1),
         status: event.status,
       };
 
@@ -313,7 +313,7 @@ function createGalleryRouter({ db, config, io, limiters }) {
         return res.status(403).json({ error: "AI face discovery is disabled for this event" });
       }
       if (!req.session.faceMatchConsent) req.session.faceMatchConsent = {};
-      req.session.faceMatchConsent[event.id] = true;
+      req.session.faceMatchConsent[event.id] = Number(event.ai_consent_version || 1);
       return req.session.save((err) => {
         if (err) return next(err);
         return res.json({ ok: true, consented: true });
@@ -338,7 +338,7 @@ function createGalleryRouter({ db, config, io, limiters }) {
       if (!event.ai_enabled) {
         return res.status(403).json({ error: "AI face discovery is disabled for this event" });
       }
-      if (!req.session?.faceMatchConsent?.[event.id]) {
+      if (Number(req.session?.faceMatchConsent?.[event.id] || 0) !== Number(event.ai_consent_version || 1)) {
         return res.status(403).json({ error: "Guest face-discovery consent is required" });
       }
 

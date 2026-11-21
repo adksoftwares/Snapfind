@@ -270,6 +270,11 @@ const SQLITE_MIGRATIONS = [
       ), 0);
     `,
   },
+  {
+    version: 6,
+    name: "face_discovery_consent_version",
+    sql: `ALTER TABLE events ADD COLUMN ai_consent_version INTEGER NOT NULL DEFAULT 1;`,
+  },
 ];
 
 const PG_SCHEMA_SQL = `
@@ -328,6 +333,7 @@ const PG_SCHEMA_SQL = `
     is_public INTEGER NOT NULL DEFAULT 0,
     ai_enabled INTEGER NOT NULL DEFAULT 0,
     selfie_only INTEGER NOT NULL DEFAULT 0,
+    ai_consent_version INTEGER NOT NULL DEFAULT 1,
     status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'paused', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
@@ -622,7 +628,7 @@ function openPostgresDatabase(databaseUrl) {
       readyPromise = (async () => {
         try {
           const check = await getPool().query(
-            "SELECT 1 FROM schema_migrations WHERE version = 5 LIMIT 1"
+            "SELECT 1 FROM schema_migrations WHERE version = 6 LIMIT 1"
           );
           if (check.rowCount > 0) return;
         } catch {
@@ -640,6 +646,9 @@ function openPostgresDatabase(databaseUrl) {
           );
           await client.query(
             "ALTER TABLE studios ADD COLUMN IF NOT EXISTS storage_used_bytes BIGINT NOT NULL DEFAULT 0"
+          );
+          await client.query(
+            "ALTER TABLE events ADD COLUMN IF NOT EXISTS ai_consent_version INTEGER NOT NULL DEFAULT 1"
           );
           await client.query(
             `UPDATE studios s SET storage_used_bytes = COALESCE((
@@ -660,7 +669,8 @@ function openPostgresDatabase(databaseUrl) {
                (2, 'super_admin_and_multi_tenant'),
                (3, 'selfie_only_gallery'),
                (4, 'studio_storage_usage_counter'),
-               (5, 'reconcile_user_storage_usage')
+               (5, 'reconcile_user_storage_usage'),
+               (6, 'face_discovery_consent_version')
              ON CONFLICT (version) DO NOTHING`
           );
           await client.query("COMMIT");

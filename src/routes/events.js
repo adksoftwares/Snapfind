@@ -356,6 +356,8 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
       const selfieOnly =
         req.body.selfie_only !== undefined ? (req.body.selfie_only ? 1 : 0) : e.selfie_only;
       const status = req.body.status !== undefined ? String(req.body.status) : e.status;
+      const aiConsentVersion = Number(e.ai_consent_version || 1) +
+        (Boolean(e.ai_enabled) !== Boolean(aiEnabled) ? 1 : 0);
 
       if (!VALID_STATUSES.has(status)) {
         return res.status(400).json({ error: "Invalid event status" });
@@ -376,7 +378,7 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
         await tx.run(
           `UPDATE events
            SET title = ?, description = ?, event_date = ?, venue = ?,
-               pin_hash = ?, is_public = ?, ai_enabled = ?, selfie_only = ?, status = ?
+               pin_hash = ?, is_public = ?, ai_enabled = ?, selfie_only = ?, ai_consent_version = ?, status = ?
            WHERE id = ?`,
           title,
           description,
@@ -386,6 +388,7 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
           isPublic,
           aiEnabled,
           selfieOnly,
+          aiConsentVersion,
           status,
           e.id
         );
