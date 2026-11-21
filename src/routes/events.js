@@ -411,13 +411,21 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
   router.delete("/events/:id", auth, requirePermission("events:write"), ownEvent, async (req, res, next) => {
     try {
       const e = req.event;
-      const sumRow = await db.get(
-        "SELECT COALESCE(SUM(total_bytes), 0) AS total FROM photos WHERE event_id = ?",
-        e.id
-      );
-      const byteSum = Number(sumRow?.total || 0);
-
       await db.tx(async (tx) => {
+        const eventLockSql = tx.dialect === "postgres"
+          ? "SELECT id FROM events WHERE id = ? FOR UPDATE"
+          : "SELECT id FROM events WHERE id = ?";
+        const lockedEvent = await tx.get(eventLockSql, e.id);
+        if (!lockedEvent) {
+          const missingEvent = new Error("Event no longer exists");
+          missingEvent.status = 404;
+          throw missingEvent;
+        }
+        const sumRow = await tx.get(
+          "SELECT COALESCE(SUM(total_bytes), 0) AS total FROM photos WHERE event_id = ?",
+          e.id
+        );
+        const byteSum = Number(sumRow?.total || 0);
         await tx.run("DELETE FROM events WHERE id = ?", e.id);
         await tx.run(
           "UPDATE users SET storage_used_bytes = MAX(0, storage_used_bytes - ?) WHERE id = ?",
@@ -529,6 +537,21 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
         let facesIndexedTotal = 0;
 
         await db.tx(async (tx) => {
+          const eventLockSql = tx.dialect === "postgres"
+            ? "SELECT id, ai_enabled FROM events WHERE id = ? FOR UPDATE"
+            : "SELECT id, ai_enabled FROM events WHERE id = ?";
+          const lockedEvent = await tx.get(eventLockSql, req.event.id);
+          if (!lockedEvent) {
+            const missingEvent = new Error("Event no longer exists");
+            missingEvent.status = 404;
+            throw missingEvent;
+          }
+          if (!lockedEvent.ai_enabled) {
+            for (const photo of savedPhotos) {
+              photo.faceIndexed = 0;
+              photo.faceDescriptors = [];
+            }
+          }
           if (req.event.studio_id) {
             const quotaResult = await tx.run(
               "UPDATE studios SET storage_used_bytes = storage_used_bytes + ? WHERE id = ? AND storage_used_bytes + ? <= storage_limit_bytes",
