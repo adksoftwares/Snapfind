@@ -357,6 +357,20 @@ describe("SnapFind AI Platform", () => {
     assert.equal(idxRes.res.status, 200);
     assert.equal(idxRes.data.saved_descriptors, 1);
 
+    const matchWithoutConsent = await reqJson(baseUrl, guestJar, `/api/gallery/${accessCode}/match`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": guestCsrf },
+      body: JSON.stringify({ descriptor }),
+    });
+    assert.equal(matchWithoutConsent.res.status, 403);
+
+    const consentRes = await reqJson(baseUrl, guestJar, `/api/gallery/${accessCode}/match/consent`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": guestCsrf },
+    });
+    assert.equal(consentRes.res.status, 200);
+    assert.equal(consentRes.data.consented, true);
+
     const matchHit = await reqJson(baseUrl, guestJar, `/api/gallery/${accessCode}/match`, {
       method: "POST",
       headers: { "X-CSRF-Token": guestCsrf },
@@ -385,17 +399,28 @@ describe("SnapFind AI Platform", () => {
     assert.equal(multiMatch.data.matches.length, 1);
     assert.ok(multiMatch.data.matches[0].confidence >= 95);
 
-    // Slightly shifted hair/beard/angle descriptor (~0.65 Euclidean distance) should match in adaptive threshold mode
+    // Client-supplied thresholds cannot loosen server-controlled matching (threshold fixed at 0.58)
     const shiftedDescriptor = descriptor.map((v, idx) =>
       idx < 100 ? Number((v + 0.065).toFixed(4)) : v
     );
-    const adaptiveMatch = await reqJson(baseUrl, guestJar, `/api/gallery/${accessCode}/match`, {
+    const ignoredThresholdMatch = await reqJson(baseUrl, guestJar, `/api/gallery/${accessCode}/match`, {
       method: "POST",
       headers: { "X-CSRF-Token": guestCsrf },
       body: JSON.stringify({ descriptors: [shiftedDescriptor], threshold: 0.67 }),
     });
-    assert.equal(adaptiveMatch.res.status, 200);
-    assert.equal(adaptiveMatch.data.matches.length, 1);
+    assert.equal(ignoredThresholdMatch.res.status, 200);
+    assert.equal(ignoredThresholdMatch.data.matches.length, 0);
+
+    const withinThresholdDescriptor = descriptor.map((v, idx) =>
+      idx < 100 ? Number((v + 0.04).toFixed(4)) : v
+    );
+    const closeMatch = await reqJson(baseUrl, guestJar, `/api/gallery/${accessCode}/match`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": guestCsrf },
+      body: JSON.stringify({ descriptors: [withinThresholdDescriptor] }),
+    });
+    assert.equal(closeMatch.res.status, 200);
+    assert.equal(closeMatch.data.matches.length, 1);
 
     // Turn off ai_enabled -> purges descriptors
     await reqJson(baseUrl, studioJar, `/api/events/${eventId}`, {
@@ -539,6 +564,13 @@ describe("SnapFind AI Platform", () => {
     assert.equal(beforeScan.data.photos.length, 0);
     assert.equal(beforeScan.data.total_event_photos, 2);
 
+    const soConsent = await reqJson(baseUrl, freshGuest, `/api/gallery/${soCode}/match/consent`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": beforeScan.data.csrfToken },
+    });
+    assert.equal(soConsent.res.status, 200);
+    assert.equal(soConsent.data.consented, true);
+
     const scanRes = await reqJson(baseUrl, freshGuest, `/api/gallery/${soCode}/match`, {
       method: "POST",
       headers: { "X-CSRF-Token": beforeScan.data.csrfToken },
@@ -559,6 +591,7 @@ describe("SnapFind AI Platform", () => {
     assert.equal(cleared.res.status, 200);
     const afterClear = await reqJson(baseUrl, freshGuest, `/api/gallery/${soCode}`);
     assert.equal(afterClear.data.photos.length, 0);
+    assert.equal(afterClear.data.event.face_match_consent, false);
 
     // 17b. Upload with inline face_entries automatically indexes faces atomically on upload
     const descAuto = Array.from({ length: 128 }, () => 0.33);
@@ -574,6 +607,12 @@ describe("SnapFind AI Platform", () => {
     assert.equal(autoUp.data.faces_indexed_total, 1);
     assert.equal(autoUp.data.photos[0].face_indexed, true);
     assert.equal(autoUp.data.photos[0].face_count, 1);
+
+    const autoConsent = await reqJson(baseUrl, freshGuest, `/api/gallery/${soCode}/match/consent`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": beforeScan.data.csrfToken },
+    });
+    assert.equal(autoConsent.res.status, 200);
 
     const autoMatch = await reqJson(baseUrl, freshGuest, `/api/gallery/${soCode}/match`, {
       method: "POST",
