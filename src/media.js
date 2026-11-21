@@ -153,26 +153,37 @@ async function processUploadedImage(uploadDirOrConfig, eventId, filePath, origin
       .webp({ quality: 76 })
       .toBuffer({ resolveWithObject: true });
 
-    await Promise.all([
-      put(buildBlobPathname("originals", eventId, origName), origOut.data, {
-        access: "private",
-        contentType: formatInfo.mime,
-        addRandomSuffix: false,
-        allowOverwrite: true,
-      }),
-      put(buildBlobPathname("previews", eventId, webpName), previewOut.data, {
-        access: "private",
-        contentType: "image/webp",
-        addRandomSuffix: false,
-        allowOverwrite: true,
-      }),
-      put(buildBlobPathname("thumbs", eventId, webpName), thumbOut.data, {
-        access: "private",
-        contentType: "image/webp",
-        addRandomSuffix: false,
-        allowOverwrite: true,
-      }),
-    ]);
+    const blobPaths = [
+      buildBlobPathname("originals", eventId, origName),
+      buildBlobPathname("previews", eventId, webpName),
+      buildBlobPathname("thumbs", eventId, webpName),
+    ];
+    try {
+      await Promise.all([
+        put(blobPaths[0], origOut.data, {
+          access: "private",
+          contentType: formatInfo.mime,
+          addRandomSuffix: false,
+          allowOverwrite: true,
+        }),
+        put(blobPaths[1], previewOut.data, {
+          access: "private",
+          contentType: "image/webp",
+          addRandomSuffix: false,
+          allowOverwrite: true,
+        }),
+        put(blobPaths[2], thumbOut.data, {
+          access: "private",
+          contentType: "image/webp",
+          addRandomSuffix: false,
+          allowOverwrite: true,
+        }),
+      ]);
+    } catch (err) {
+      // A partial parallel upload can leave one or two variants behind.
+      await delBlobs(blobPaths).catch(() => {});
+      throw err;
+    }
 
     const totalBytes = origOut.info.size + previewOut.info.size + thumbOut.info.size;
     return {
@@ -195,17 +206,22 @@ async function processUploadedImage(uploadDirOrConfig, eventId, filePath, origin
   const previewPath = path.join(storage.uploadDir, eventId, "previews", webpName);
   const thumbPath = path.join(storage.uploadDir, eventId, "thumbs", webpName);
 
-  const origInfo = await basePipeline.toFile(origPath);
-
-  const previewInfo = await sharp(origPath, { limitInputPixels: 100_000_000 })
-    .resize({ width: 1200, height: 1200, fit: "inside", withoutEnlargement: true })
-    .webp({ quality: 82 })
-    .toFile(previewPath);
-
-  const thumbInfo = await sharp(previewPath)
-    .resize({ width: 480, height: 480, fit: "inside", withoutEnlargement: true })
-    .webp({ quality: 76 })
-    .toFile(thumbPath);
+  let origInfo, previewInfo, thumbInfo;
+  try {
+    origInfo = await basePipeline.toFile(origPath);
+    previewInfo = await sharp(origPath, { limitInputPixels: 100_000_000 })
+      .resize({ width: 1200, height: 1200, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toFile(previewPath);
+    thumbInfo = await sharp(previewPath)
+      .resize({ width: 480, height: 480, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 76 })
+      .toFile(thumbPath);
+  } catch (err) {
+    // Keep failed conversions from accumulating incomplete local media variants.
+    await Promise.all([origPath, previewPath, thumbPath].map((p) => fsp.unlink(p).catch(() => {})));
+    throw err;
+  }
 
   const totalBytes = origInfo.size + previewInfo.size + thumbInfo.size;
 
