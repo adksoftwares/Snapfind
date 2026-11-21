@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Event Gallery — SnapFind AI</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="gallery-body">
+  <header class="top">
+    <a class="brand" href="/">SNAPFIND<span>AI</span></a>
+    <span class="pill" id="galleryBadge">EVENT GALLERY</span>
+  </header>
+
+  <main class="gallery-wrap" id="galleryMain">
+    <div id="galleryHead">
+      <p class="eyebrow">A MOMENT TO REMEMBER</p>
+      <h1 id="eventTitle">Loading gallery…</h1>
+      <p id="eventMeta" class="lead"></p>
+      <p id="eventDesc" class="muted"></p>
+    </div>
+
+    <section id="pinGate" class="pin-gate hidden">
+      <p class="eyebrow">PRIVATE GALLERY</p>
+      <h2>Enter guest PIN</h2>
+      <p class="muted">This event gallery is protected by the photographer. Enter the PIN to view photos.</p>
+      <form id="pinForm">
+        <input id="pinInput" aria-label="Event PIN" type="password" placeholder="Event PIN" required>
+        <button class="btn" type="submit">Unlock</button>
+      </form>
+      <p id="pinError" class="error"></p>
+    </section>
+
+    <div id="galleryContent" class="hidden">
+      <div class="gallery-tools">
+        <input id="guestName" aria-label="Your name" placeholder="Your name (optional)">
+        <input id="guestEmail" aria-label="Email for requests" type="email" placeholder="Email for requests (optional)">
+        <input id="gallerySearch" aria-label="Search captions or filenames" placeholder="Search captions or filenames…">
+      </div>
+
+      <div class="gallery-filters">
+        <button class="tab-btn active" data-filter="all" type="button">All photos</button>
+        <button class="tab-btn" data-filter="favourites" type="button">Favourites (<span id="favCount">0</span>)</button>
+        <button class="tab-btn hidden" id="aiFilterTab" data-filter="matches" type="button">AI matches (<span id="matchCount">0</span>)</button>
+      </div>
+
+      <p id="galleryError" class="error"></p>
+      <div id="guestBulkBar" class="bulk-photo-bar guest-bulk-bar hidden">
+        <label class="inline"><input type="checkbox" id="guestSelectAll"> Select all (<span id="guestShownCount">0</span>)</label>
+        <span id="guestDownloadCount" class="muted">0 selected</span>
+        <div class="bulk-photo-actions">
+          <button class="btn sm ghost hidden" id="guestClearPickBtn" type="button">Clear</button>
+          <button class="btn sm hidden" id="guestDownloadSelectedBtn" type="button">↓ Download selected (0)</button>
+        </div>
+      </div>
+      <div id="galleryGrid" class="gallery-grid"></div>
+      <div id="galleryEmpty" class="empty-card hidden"></div>
+      <p id="galleryMessage" class="muted"></p>
+
+      <div id="paginationControls" class="pagination hidden">
+        <button class="btn sm ghost" id="prevPage" type="button">← Previous</button>
+        <span id="pageInfo" class="muted"></span>
+        <button class="btn sm ghost" id="nextPage" type="button">Next →</button>
+      </div>
+
+      <section id="aiSection" class="ai-panel hidden">
+        <div>
+          <p class="eyebrow">OPTIONAL FEATURE</p>
+          <h2>Find your photos with AI</h2>
+          <p>
+            Face discovery is optional and consent-based. Your selfie is analysed only on this device
+            and is never uploaded or saved by SnapFind.
+          </p>
+        </div>
+        <label class="consent">
+          <input type="checkbox" id="aiConsent">
+          I understand and consent to optional on-device face analysis for this session.
+        </label>
+        <div class="ai-controls">
+          <button class="btn ghost" id="aiCameraBtn" type="button" disabled>Use camera</button>
+          <label class="file-picker disabled" id="selfiePickerLabel" for="selfie">
+            <span id="selfieFileName">Upload selfie photo…</span>
+            <input type="file" id="selfie" accept="image/*" disabled hidden>
+          </label>
+          <button class="btn" id="aiFind" type="button" disabled>Find my photos</button>
+          <button class="btn ghost hidden" id="aiCancel" type="button">Cancel scan</button>
+          <button class="btn ghost hidden" id="aiResetScanBtn" type="button">Scan another face</button>
+        </div>
+        <div id="aiMatchOptions" class="ai-options disabled" role="group" aria-label="AI matching options">
+          <label class="ai-option-chip">
+            <input type="checkbox" name="aiOpt" value="angle_distance" checked disabled>
+            <span>Angle &amp; distance</span>
+          </label>
+          <label class="ai-option-chip">
+            <input type="checkbox" name="aiOpt" value="hair_beard_lighting" checked disabled>
+            <span>Hair / beard / lighting changes</span>
+          </label>
+          <label class="ai-option-chip">
+            <input type="checkbox" name="aiOpt" value="distant_group" disabled>
+            <span>Wide group / distant faces</span>
+          </label>
+        </div>
+        <div id="cameraBox" class="camera-box hidden">
+          <video id="selfieVideo" autoplay playsinline muted></video>
+          <div class="camera-actions">
+            <button class="btn sm" id="captureSelfieBtn" type="button">Capture selfie</button>
+            <button class="btn sm ghost" id="closeCameraBtn" type="button">Close camera</button>
+          </div>
+        </div>
+        <div id="selfiePreviewWrap" class="selfie-preview hidden">
+          <img id="selfiePreviewImg" alt="Selected selfie preview">
+          <div>
+            <b id="selfiePreviewLabel">Selfie ready</b>
+            <p class="muted" id="selfiePreviewSub">Analysed locally on your device — never uploaded.</p>
+          </div>
+        </div>
+        <p id="aiStatus" class="muted"></p>
+      </section>
+    </div>
+  </main>
+
+  <dialog id="lightboxDialog" class="wide">
+    <button type="button" class="close" id="lightboxClose" aria-label="Close">×</button>
+    <div id="lightboxBody"></div>
+  </dialog>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/vendor/face-api/face-api.js"></script>
+  <script src="/face-engine.js?v=3"></script>
+  <script src="/gallery.js?v=6"></script>
+</body>
+</html>

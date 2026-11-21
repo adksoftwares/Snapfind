@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SnapFind AI — Photographer Workspace</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/">SNAPFIND<span>AI</span></a>
+    <nav>
+      <a href="#features">Platform</a>
+      <a href="#public-events">Public Galleries</a>
+      <a href="#workflow">How it works</a>
+      <button id="loginOpen" class="btn ghost">Sign in</button>
+      <button id="registerOpen" class="btn">Get started</button>
+      <a id="dashNavBtn" class="btn hidden" href="/dashboard.html">Open dashboard</a>
+      <button id="homeLogoutBtn" class="btn ghost hidden" type="button">Log out</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <p class="eyebrow">EVENT PHOTOGRAPHY, REIMAGINED</p>
+        <h1>Every moment.<br><em>Found by you.</em></h1>
+        <p class="lead">
+          A self-hostable platform for photographers to deliver fast, EXIF-clean event galleries.
+          Guests scan a QR code, unlock private events, favourite shots, and discover their photos.
+        </p>
+        <div class="actions">
+          <button class="btn" id="heroStart">Create your workspace →</button>
+          <a class="textlink" href="#workflow">Explore the workflow</a>
+        </div>
+        <form id="codeJumpForm" class="code-jump">
+          <input id="codeJumpInput" aria-label="Event access code" placeholder="Have an event code? Enter it…" maxlength="20" required>
+          <button class="btn ghost" type="submit">Open gallery</button>
+        </form>
+        <div class="trust">
+          <span>✓ PIN-protected private galleries</span>
+          <span>✓ EXIF metadata stripped on upload</span>
+          <span>✓ Self-hosted AI face discovery</span>
+        </div>
+      </div>
+
+      <div class="visual">
+        <div class="visual-card">
+          <div class="visual-head">
+            <span class="dot"></span>
+            <span>EVENT GALLERY</span>
+            <small>LIVE</small>
+          </div>
+          <div class="photo-grid">
+            <div class="ph p1"></div>
+            <div class="ph p2"></div>
+            <div class="ph p3"></div>
+            <div class="ph p4"></div>
+          </div>
+          <div class="visual-foot">
+            <div>
+              <b>Find your moment</b>
+              <small>Scan · Match · Download</small>
+            </div>
+            <div class="qr-badge" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                <rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM18 18h3v3h-3zM14 20h2"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div class="float-tag">✦ Opt-in AI discovery</div>
+      </div>
+    </section>
+
+    <section class="metrics">
+      <div><b>01</b><span>One QR for every event</span></div>
+      <div><b>02</b><span>PIN-gated private galleries</span></div>
+      <div><b>03</b><span>Favourites &amp; guest selections</span></div>
+      <div><b>04</b><span>Fast WebP thumbnails &amp; previews</span></div>
+    </section>
+
+    <section id="features" class="section">
+      <p class="eyebrow">BUILT FOR THE WHOLE WORKFLOW</p>
+      <h2>From camera to<br><em>their camera roll.</em></h2>
+      <div class="features">
+        <article>
+          <span class="feature-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </span>
+          <h3>QR &amp; PIN access</h3>
+          <p>Generate high-resolution event QR codes and optionally lock private galleries with a guest PIN.</p>
+        </article>
+        <article>
+          <span class="feature-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><circle cx="11" cy="10" r="3"/>
+            </svg>
+          </span>
+          <h3>Self-hosted AI discovery</h3>
+          <p>Opt-in per event with pre-indexed descriptors and server-side matching with zero third-party CDNs.</p>
+        </article>
+        <article>
+          <span class="feature-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
+            </svg>
+          </span>
+          <h3>Safe photo delivery</h3>
+          <p>Magic-byte verified uploads, automatic EXIF removal, fast WebP previews, and clean original downloads.</p>
+        </article>
+        <article>
+          <span class="feature-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
+            </svg>
+          </span>
+          <h3>Studio &amp; admin control</h3>
+          <p>Live Socket.IO selection alerts, caption editing, storage quotas, event moderation, and audit logging.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="public-events" class="section">
+      <p class="eyebrow">FEATURED GALLERIES</p>
+      <h2>Publicly listed events.</h2>
+      <div id="publicEventsGrid" class="public-grid">
+        <p class="muted">Loading public galleries…</p>
+      </div>
+    </section>
+
+    <section id="workflow" class="workflow">
+      <p class="eyebrow">SIMPLE FOR EVERYONE</p>
+      <h2>One event. Three easy steps.</h2>
+      <div class="steps">
+        <div>
+          <b>01</b>
+          <h3>Create</h3>
+          <p>Set up an event, choose privacy &amp; AI settings, and upload photos.</p>
+        </div>
+        <div>
+          <b>02</b>
+          <h3>Share</h3>
+          <p>Download the event QR code or share the 12-character gallery link.</p>
+        </div>
+        <div>
+          <b>03</b>
+          <h3>Discover</h3>
+          <p>Guests browse, favourite, request selections, and download originals.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <b>SNAPFIND AI</b>
+      <span>Moments made easier to find.</span>
+      <small>© 2026 SnapFind AI</small>
+    </footer>
+  </main>
+
+  <dialog id="authDialog">
+    <form id="authForm">
+      <button type="button" class="close" id="authClose" aria-label="Close">×</button>
+      <p class="eyebrow" id="authEyebrow">YOUR WORKSPACE</p>
+      <h2 id="authTitle">Welcome back</h2>
+      <div id="registerRow" class="form-grid hidden">
+        <div id="nameField" class="field">
+          <label for="authName">Full name</label>
+          <input id="authName" name="name" autocomplete="name">
+        </div>
+        <div id="studioField" class="field">
+          <label for="authStudio">Studio name (optional)</label>
+          <input id="authStudio" name="studio" autocomplete="organization">
+        </div>
+      </div>
+      <div id="inviteField" class="field hidden">
+        <label for="authInvite">Studio invite code</label>
+        <input id="authInvite" name="invite_code" autocomplete="off" placeholder="Required by administrator">
+      </div>
+      <div class="field" id="emailField">
+        <label for="authEmail">Email address</label>
+        <input id="authEmail" name="email" type="email" required autocomplete="email">
+      </div>
+      <div class="field" id="passwordField">
+        <label for="authPassword">Password</label>
+        <input id="authPassword" name="password" type="password" minlength="6" required autocomplete="current-password">
+      </div>
+      <div class="field hidden" id="mfaField">
+        <label for="authMfaCode">Authenticator or recovery code</label>
+        <input id="authMfaCode" name="mfa_code" autocomplete="one-time-code" placeholder="6-digit code">
+      </div>
+      <button class="btn full" id="authSubmit" type="submit">Sign in</button>
+      <p id="authForgot" class="switch"><a href="/reset-password.html">Forgot password?</a></p>
+      <p id="authSwitch" class="switch">New to SnapFind? <a href="#">Create account</a></p>
+      <p id="authError" class="error"></p>
+    </form>
+  </dialog>
+
+  <script src="/app.js?v=2"></script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Studio Dashboard — SnapFind AI</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="dash">
+  <aside class="sidebar">
+    <a class="brand" href="/">SNAPFIND<span>AI</span></a>
+    <p class="side-label">WORKSPACE</p>
+    <nav class="side-nav" aria-label="Workspace navigation">
+      <a class="active" href="#events">Events</a>
+      <a href="#staff" id="staffLink" class="hidden">Team</a>
+      <a href="#profile">Profile &amp; Security</a>
+      <a href="/super-admin.html" id="superAdminLink" class="hidden">Super Admin ↗</a>
+    </nav>
+    <div class="side-bottom">
+      <span id="sideName"></span>
+      <button id="logout" class="btn sm side-signout" type="button">Sign out</button>
+    </div>
+  </aside>
+
+  <main class="dash-main">
+    <header class="dash-head">
+      <div>
+        <p class="eyebrow" id="workspaceRoleLabel">STUDIO WORKSPACE</p>
+        <h1>Good to see you, <span id="welcomeName">there</span>.</h1>
+        <p class="muted">Manage your events, uploads, AI face indexing, and guest selections.</p>
+      </div>
+      <div class="dash-head-actions">
+        <button class="btn" id="newEvent" type="button">＋ Create event</button>
+        <button class="btn ghost" id="topLogout" type="button">Log out</button>
+      </div>
+    </header>
+
+    <div id="liveToast" class="toast hidden">
+      <span id="liveToastText"></span>
+      <button id="liveToastClose" class="btn sm ghost" type="button">Dismiss</button>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat">
+        <span>Total events</span>
+        <b id="statEvents">0</b>
+      </div>
+      <div class="stat">
+        <span>Photos uploaded</span>
+        <b id="statPhotos">0</b>
+      </div>
+      <div class="stat">
+        <span>Guest selections</span>
+        <b id="statSelections">0</b>
+      </div>
+      <div class="stat">
+        <span>Storage used</span>
+        <b id="statStorage">0.0 MB</b>
+        <small id="statStorageLimit">of 500 MB limit</small>
+        <progress id="storageProgress" class="storage-progress" max="100" value="0"></progress>
+      </div>
+    </div>
+
+    <section id="events" class="dash-section">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">YOUR PORTFOLIO</p>
+          <h2>Recent events</h2>
+        </div>
+      </div>
+      <div id="eventList" class="event-list"></div>
+    </section>
+
+    <section id="staff" class="dash-section hidden">
+      <p class="eyebrow">STUDIO TEAM</p>
+      <h2>Staff members &amp; permissions</h2>
+      <p class="muted">Create studio staff accounts scoped strictly to your studio with least-privilege permissions.</p>
+      <form id="staffForm" class="panel-box">
+        <div class="form-grid">
+          <label for="stName">Staff name<input id="stName" name="name" required></label>
+          <label for="stEmail">Email<input id="stEmail" name="email" type="email" required></label>
+        </div>
+        <label for="stPw">Temporary password (6+ chars)<input id="stPw" name="password" type="password" minlength="6" required></label>
+        <div class="perm-grid">
+          <label class="inline"><input type="checkbox" name="perm" value="events:read" checked> events:read</label>
+          <label class="inline"><input type="checkbox" name="perm" value="events:write"> events:write</label>
+          <label class="inline"><input type="checkbox" name="perm" value="photos:upload" checked> photos:upload</label>
+          <label class="inline"><input type="checkbox" name="perm" value="photos:delete"> photos:delete</label>
+          <label class="inline"><input type="checkbox" name="perm" value="selections:read" checked> selections:read</label>
+          <label class="inline"><input type="checkbox" name="perm" value="ai:index"> ai:index</label>
+        </div>
+        <button class="btn sm" type="submit">＋ Add staff member</button>
+        <p id="staffMsg" class="muted"></p>
+      </form>
+      <div id="staffListWrap" class="table-wrap"></div>
+    </section>
+
+    <section id="profile" class="dash-section">
+      <p class="eyebrow">ACCOUNT &amp; SECURITY</p>
+      <h2>Studio profile</h2>
+      <form id="profileForm" class="profile-form">
+        <label for="profName">Name<input id="profName" name="name" required></label>
+        <label for="profPhone">Phone<input id="profPhone" name="phone"></label>
+        <label for="profStudio">Studio name<input id="profStudio" name="studio"></label>
+        <button class="btn" type="submit">Save profile</button>
+      </form>
+      <p id="profileMsg" class="muted"></p>
+
+      <h3 class="subhead">Change password</h3>
+      <form id="passwordForm" class="profile-form">
+        <label for="pwCurrent">Current password<input id="pwCurrent" name="current_password" type="password" required autocomplete="current-password"></label>
+        <label for="pwNew">New password (6+ chars)<input id="pwNew" name="new_password" type="password" minlength="6" required autocomplete="new-password"></label>
+        <button class="btn ghost" type="submit">Update password</button>
+      </form>
+      <p id="passwordMsg" class="muted"></p>
+
+      <h3 class="subhead">Two-factor authentication (TOTP)</h3>
+      <div id="mfaBox" class="panel-box">
+        <p id="mfaStatusText" class="muted">Checking MFA status…</p>
+        <div class="manage-actions">
+          <button class="btn sm" id="startMfaSetupBtn" type="button">Enable 2FA</button>
+          <button class="btn sm danger hidden" id="disableMfaBtn" type="button">Disable 2FA</button>
+        </div>
+        <div id="mfaSetupArea" class="hidden"></div>
+      </div>
+
+      <h3 class="subhead">Active sessions</h3>
+      <div class="privacy-note">
+        Security transparency: SnapFind records sign-in timestamps, IP addresses, and device/browser strings so you can identify unfamiliar access and sign out remote sessions.
+      </div>
+      <div id="selfSessionsWrap" class="table-wrap"></div>
+    </section>
+  </main>
+
+  <dialog id="eventDialog">
+    <form id="eventForm">
+      <button type="button" class="close" id="eventClose" aria-label="Close">×</button>
+      <p class="eyebrow">NEW PROJECT</p>
+      <h2>Create event</h2>
+      <label for="evTitle">Event name<input id="evTitle" name="title" required placeholder="e.g. A &amp; B Wedding"></label>
+      <div class="form-grid">
+        <label for="evDate">Date<input id="evDate" name="event_date" type="date"></label>
+        <label for="evVenue">Venue<input id="evVenue" name="venue" placeholder="Optional venue"></label>
+      </div>
+      <div class="form-grid">
+        <label for="evPin">Guest PIN (optional)<input id="evPin" name="pin" minlength="4" maxlength="16" placeholder="4–16 chars"></label>
+        <label for="evDesc">Short note<input id="evDesc" name="description" placeholder="Optional description"></label>
+      </div>
+      <label class="inline"><input name="is_public" type="checkbox"> Publicly listed on landing page</label>
+      <label class="inline"><input name="ai_enabled" type="checkbox"> Enable opt-in AI face discovery</label>
+      <label class="inline"><input name="selfie_only" type="checkbox" checked> Private selfie-only delivery (hide other guests' photos until selfie scan)</label>
+      <button class="btn full" type="submit">Create event</button>
+      <p id="eventError" class="error"></p>
+    </form>
+  </dialog>
+
+  <dialog id="manageDialog" class="wide">
+    <div id="manageContent"></div>
+  </dialog>
+
+  <dialog id="forcePwDialog">
+    <form id="forcePwForm">
+      <p class="eyebrow">SECURITY REQUIREMENT</p>
+      <h2>Password update required</h2>
+      <p class="muted">An administrator required a password change before you continue.</p>
+      <label for="fpCurrent">Current / temporary password<input id="fpCurrent" name="current_password" type="password" required></label>
+      <label for="fpNew">New password (6+ chars)<input id="fpNew" name="new_password" type="password" minlength="6" required autocomplete="new-password"></label>
+      <button class="btn full" type="submit">Update password &amp; continue</button>
+      <p id="forcePwError" class="error"></p>
+    </form>
+  </dialog>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/vendor/face-api/face-api.js"></script>
+  <script src="/face-engine.js?v=3"></script>
+  <script src="/dashboard.js?v=8"></script>
+</body>
+</html>

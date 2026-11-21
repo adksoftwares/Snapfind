@@ -1,0 +1,8 @@
+storage/
+.env
+.env.*
+!.env.example
+.git/
+tests/
+*.sqlite
+*.db

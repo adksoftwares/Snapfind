@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Super Admin Control System — SnapFind AI</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="dash">
+  <!-- Setup / Login / Access Gate -->
+  <div id="portalGate" class="portal-wrap hidden" role="region" aria-label="Super Admin Access">
+    <div class="portal-card">
+      <a class="brand" href="/">SNAPFIND<span>AI</span></a>
+      <p class="eyebrow" id="gateEyebrow">PLATFORM GOVERNANCE</p>
+      <h1 id="gateTitle">Super Admin Sign In</h1>
+      <p class="muted" id="gateSubtitle">Authenticate with your Super Admin credentials and TOTP authenticator.</p>
+
+      <!-- Initial Controlled Setup (only when 0 super_admin accounts exist) -->
+      <form id="setupInitForm" class="hidden">
+        <div class="privacy-note">
+          Initial platform setup: provide the server-configured <code>SUPER_ADMIN_SETUP_TOKEN</code> and enroll MFA. Public Super Admin registration is permanently disabled.
+        </div>
+        <label for="saSetupToken">Setup token<input id="saSetupToken" name="setup_token" type="password" required autocomplete="off"></label>
+        <label for="saSetupName">Full name<input id="saSetupName" name="name" required></label>
+        <label for="saSetupEmail">Email address<input id="saSetupEmail" name="email" type="email" required></label>
+        <label for="saSetupPw">Password (6+ chars)<input id="saSetupPw" name="password" type="password" minlength="6" required autocomplete="new-password"></label>
+        <button class="btn full" type="submit">Continue to MFA setup →</button>
+      </form>
+
+      <form id="setupConfirmForm" class="hidden">
+        <p class="muted">Scan this QR code in Google Authenticator, Authy, or 1Password, then enter the 6-digit verification code.</p>
+        <img id="setupQrImg" class="qr-large" alt="Super Admin TOTP QR">
+        <p class="muted">Manual secret:</p>
+        <div id="setupSecretText" class="code-box"></div>
+        <label for="saSetupCode">6-digit authenticator code<input id="saSetupCode" name="code" inputmode="numeric" maxlength="6" required autocomplete="one-time-code"></label>
+        <button class="btn full" type="submit">Activate Super Admin</button>
+      </form>
+
+      <div id="setupRecoveryBox" class="hidden">
+        <p class="success-msg">Super Admin activated! Save these one-time recovery codes offline before continuing:</p>
+        <div id="setupRecoveryGrid" class="recovery-grid"></div>
+        <button class="btn full" id="enterConsoleBtn" type="button">Enter Super Admin Console →</button>
+      </div>
+
+      <!-- Standard Super Admin Login + MFA -->
+      <form id="saLoginForm" class="hidden">
+        <label for="saEmail">Email address<input id="saEmail" name="email" type="email" required autocomplete="email"></label>
+        <label for="saPassword">Password<input id="saPassword" name="password" type="password" required autocomplete="current-password"></label>
+        <button class="btn full" type="submit">Continue →</button>
+        <p class="switch"><a href="/reset-password.html">Forgot password?</a></p>
+      </form>
+
+      <form id="saMfaForm" class="hidden">
+        <p class="muted">Enter the 6-digit code from your authenticator app or a recovery code.</p>
+        <label for="saMfaCode">Verification code<input id="saMfaCode" name="code" required autocomplete="one-time-code" placeholder="123456"></label>
+        <button class="btn full" type="submit">Verify &amp; Enter Console</button>
+      </form>
+
+      <div id="accessDeniedBox" class="hidden">
+        <p class="error">Access denied: your current session does not have Super Admin privileges.</p>
+        <div class="manage-actions">
+          <a class="btn" href="/dashboard.html">Return to Studio Dashboard</a>
+          <button class="btn ghost" id="deniedSignOutBtn" type="button">Sign out</button>
+        </div>
+      </div>
+
+      <p id="gateError" class="error"></p>
+      <p class="switch"><a href="/">← Back to SnapFind AI</a></p>
+    </div>
+  </div>
+
+  <!-- Main Super Admin Console -->
+  <div id="consoleShell" class="hidden">
+    <aside class="sidebar">
+      <a class="brand" href="/">SNAPFIND<span>SA</span></a>
+      <p class="side-label">SUPER ADMIN</p>
+      <nav class="side-nav" aria-label="Super Admin navigation">
+        <a href="#overview" class="active" data-sa-view="overview">Overview</a>
+        <a href="#accounts" data-sa-view="accounts">Accounts</a>
+        <a href="#studios" data-sa-view="studios">Studios</a>
+        <a href="#security" data-sa-view="security">Security logs</a>
+        <a href="#sessions" data-sa-view="sessions">Active sessions</a>
+        <a href="#audit" data-sa-view="audit">Audit logs</a>
+      </nav>
+      <div class="side-bottom">
+        <span id="saSideEmail"></span>
+        <a class="btn sm side-signout" href="/dashboard.html">Studio view ↗</a>
+        <button id="saLogoutBtn" class="btn sm side-signout" type="button">Sign out</button>
+      </div>
+    </aside>
+
+    <main class="dash-main">
+      <header class="dash-head">
+        <div>
+          <p class="eyebrow">ENTERPRISE CONTROL PLANE</p>
+          <h1 id="saViewTitle">Platform overview</h1>
+          <p class="muted" id="saViewSubtitle">Account lifecycle, multi-tenant studios, security telemetry, and immutable auditing.</p>
+        </div>
+        <div class="dash-head-actions">
+          <button class="btn" id="openCreateAccountBtn" type="button">＋ Create account</button>
+          <button class="btn ghost" id="saTopLogoutBtn" type="button">Log out</button>
+        </div>
+      </header>
+
+      <p id="saGlobalMsg" class="muted"></p>
+
+      <!-- Overview View -->
+      <section id="view-overview" class="sa-view">
+        <div id="overviewKpis" class="kpi-grid"></div>
+        <div class="split-grid">
+          <div class="dash-section">
+            <p class="eyebrow">RECENT ONBOARDING</p>
+            <h2>Last registered accounts</h2>
+            <div id="lastRegisteredWrap" class="table-wrap"></div>
+          </div>
+          <div class="dash-section">
+            <p class="eyebrow">AUTHENTICATION FEED</p>
+            <h2>Recent login activity</h2>
+            <div id="recentLoginsWrap" class="table-wrap"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Accounts View -->
+      <section id="view-accounts" class="dash-view dash-section hidden">
+        <div class="filter-bar">
+          <input id="accSearch" aria-label="Search accounts" placeholder="Search name, email, or studio…">
+          <select id="accRoleFilter" aria-label="Filter by role">
+            <option value="">All roles</option>
+            <option value="super_admin">Super Admin</option>
+            <option value="studio_owner">Studio Owner</option>
+            <option value="studio_staff">Studio Staff</option>
+          </select>
+          <select id="accStatusFilter" aria-label="Filter by status">
+            <option value="">All statuses</option>
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+            <option value="deleted">Deleted</option>
+          </select>
+        </div>
+        <div id="accountsTableWrap" class="table-wrap"></div>
+        <div id="accountsPagination" class="pagination"></div>
+      </section>
+
+      <!-- Studios View -->
+      <section id="view-studios" class="dash-view dash-section hidden">
+        <div class="filter-bar">
+          <input id="studioSearch" aria-label="Search studios" placeholder="Search studio name or owner…">
+          <select id="studioStatusFilter" aria-label="Filter by studio status">
+            <option value="">All statuses</option>
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+          </select>
+          <select id="studioPlanFilter" aria-label="Filter by plan">
+            <option value="">All plans</option>
+            <option value="free">Free</option>
+            <option value="standard">Standard</option>
+            <option value="pro">Pro</option>
+            <option value="enterprise">Enterprise</option>
+          </select>
+          <button class="btn sm ghost" id="refreshStudiosBtn" type="button">Refresh</button>
+        </div>
+        <div id="studiosTableWrap" class="table-wrap"></div>
+        <div id="studiosPagination" class="pagination"></div>
+      </section>
+
+      <!-- Security Logs View -->
+      <section id="view-security" class="dash-view dash-section hidden">
+        <div class="privacy-note">
+          Transparency notice: Security activity records login timestamps, outcomes, IP addresses, and browser/device strings solely for abuse prevention, suspicious-login alerts, and session control in accordance with privacy disclosures.
+        </div>
+        <div class="filter-bar">
+          <input id="secSearch" aria-label="Search security events" placeholder="Search email, IP, device, or details…">
+          <select id="secTypeFilter" aria-label="Filter by event type">
+            <option value="">All event types</option>
+            <option value="login.success">login.success</option>
+            <option value="login.failed">login.failed</option>
+            <option value="login.suspicious">login.suspicious</option>
+            <option value="mfa.verified">mfa.verified</option>
+            <option value="mfa.failed">mfa.failed</option>
+            <option value="logout">logout</option>
+            <option value="session.revoked">session.revoked</option>
+            <option value="password.reset_requested">password.reset_requested</option>
+            <option value="password.reset_completed">password.reset_completed</option>
+            <option value="account.suspended">account.suspended</option>
+            <option value="studio.suspended">studio.suspended</option>
+          </select>
+          <label class="inline"><input type="checkbox" id="secSuspiciousOnly"> Suspicious only</label>
+        </div>
+        <div id="securityTableWrap" class="table-wrap"></div>
+        <div id="securityPagination" class="pagination"></div>
+      </section>
+
+      <!-- Active Sessions View -->
+      <section id="view-sessions" class="dash-view dash-section hidden">
+        <div class="filter-bar">
+          <button class="btn sm ghost" id="refreshSessionsBtn" type="button">Refresh sessions</button>
+        </div>
+        <div id="sessionsTableWrap" class="table-wrap"></div>
+      </section>
+
+      <!-- Audit Logs View -->
+      <section id="view-audit" class="dash-view dash-section hidden">
+        <div class="filter-bar">
+          <input id="auditSearch" aria-label="Search audit logs" placeholder="Search action, actor email, or details…">
+        </div>
+        <div id="auditTableWrap" class="table-wrap"></div>
+        <div id="auditPagination" class="pagination"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Create Account Modal -->
+  <dialog id="createAccountDialog">
+    <form id="createAccountForm">
+      <button type="button" class="close" id="createAccClose" aria-label="Close">×</button>
+      <p class="eyebrow">PROVISION ACCOUNT</p>
+      <h2>Create user account</h2>
+      <div class="form-grid">
+        <label for="caName">Full name<input id="caName" name="name" required></label>
+        <label for="caEmail">Email address<input id="caEmail" name="email" type="email" required></label>
+      </div>
+      <div class="form-grid">
+        <label for="caRole">Account role
+          <select id="caRole" name="role">
+            <option value="studio_owner">Studio Owner</option>
+            <option value="studio_staff">Studio Staff</option>
+            <option value="super_admin">Super Admin (if policy allows)</option>
+          </select>
+        </label>
+        <label for="caPw">Initial password (6+ chars)<input id="caPw" name="password" type="password" minlength="6" required></label>
+      </div>
+      <label id="caStudioNameWrap" for="caStudio">Studio name<input id="caStudio" name="studio" placeholder="e.g. Horizon Photography"></label>
+      <label id="caStudioSelectWrap" class="hidden" for="caStudioId">Assign to Studio
+        <select id="caStudioId" name="studio_id"></select>
+      </label>
+      <div id="caStaffPermsWrap" class="hidden">
+        <p class="muted">Staff permissions:</p>
+        <div class="perm-grid">
+          <label class="inline"><input type="checkbox" name="perm" value="events:read" checked> events:read</label>
+          <label class="inline"><input type="checkbox" name="perm" value="events:write"> events:write</label>
+          <label class="inline"><input type="checkbox" name="perm" value="photos:upload" checked> photos:upload</label>
+          <label class="inline"><input type="checkbox" name="perm" value="photos:delete"> photos:delete</label>
+          <label class="inline"><input type="checkbox" name="perm" value="selections:read" checked> selections:read</label>
+          <label class="inline"><input type="checkbox" name="perm" value="ai:index"> ai:index</label>
+        </div>
+      </div>
+      <label class="inline"><input type="checkbox" name="must_change_password" checked> Force password change on next login</label>
+      <button class="btn full" type="submit">Create account</button>
+      <p id="createAccError" class="error"></p>
+    </form>
+  </dialog>
+
+  <!-- Account Detail & Lifecycle Modal -->
+  <dialog id="accountDetailDialog" class="wide">
+    <div id="accountDetailBody"></div>
+  </dialog>
+
+  <!-- Studio Detail & Moderation Modal -->
+  <dialog id="studioDetailDialog" class="wide">
+    <div id="studioDetailBody"></div>
+  </dialog>
+
+  <script src="/super-admin.js?v=3"></script>
+</body>
+</html>
