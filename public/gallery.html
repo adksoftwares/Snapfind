@@ -44,7 +44,7 @@
         <button class="tab-btn hidden" id="aiFilterTab" data-filter="matches" type="button">AI matches (<span id="matchCount">0</span>)</button>
       </div>
 
-      <p id="galleryError" class="error"></p>
+      <p id="galleryError" class="error" role="alert" aria-live="assertive"></p>
       <div id="guestBulkBar" class="bulk-photo-bar guest-bulk-bar hidden">
         <label class="inline"><input type="checkbox" id="guestSelectAll"> Select all (<span id="guestShownCount">0</span>)</label>
         <span id="guestDownloadCount" class="muted">0 selected</span>
@@ -54,8 +54,8 @@
         </div>
       </div>
       <div id="galleryGrid" class="gallery-grid"></div>
-      <div id="galleryEmpty" class="empty-card hidden"></div>
-      <p id="galleryMessage" class="muted"></p>
+      <div id="galleryEmpty" class="empty-card hidden" role="status"></div>
+      <p id="galleryMessage" class="muted" role="status" aria-live="polite"></p>
 
       <div id="paginationControls" class="pagination hidden">
         <button class="btn sm ghost" id="prevPage" type="button">← Previous</button>
@@ -116,7 +116,7 @@
             <p class="muted" id="selfiePreviewSub">Analysed locally on your device — never uploaded.</p>
           </div>
         </div>
-        <p id="aiStatus" class="muted"></p>
+        <p id="aiStatus" class="muted" role="status" aria-live="polite"></p>
       </section>
     </div>
   </main>

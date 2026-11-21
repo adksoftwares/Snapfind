@@ -775,6 +775,29 @@ input[type="checkbox"] {
   margin-top: 6px;
 }
 
+progress.upload-progress {
+  width: 100%;
+  height: 8px;
+  margin: 8px 0 12px;
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #edf1ec;
+}
+progress.upload-progress::-webkit-progress-bar {
+  background: #edf1ec;
+  border-radius: 999px;
+}
+progress.upload-progress::-webkit-progress-value {
+  background: #6f9e31;
+  border-radius: 999px;
+}
+progress.upload-progress::-moz-progress-bar {
+  background: #6f9e31;
+  border-radius: 999px;
+}
+
 progress.storage-progress {
   width: 100%;
   height: 6px;
