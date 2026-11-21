@@ -555,7 +555,7 @@ async function manageEvent(eventId) {
       if (!files.length) return;
       $("#manageError").textContent = "";
       const uploadProgress = $("#uploadProgress");
-      uploadProgress.value = 0;
+      uploadProgress.value = 65;
       uploadProgress.classList.remove("hidden");
       ev.target.value = "";
 
@@ -618,7 +618,7 @@ async function manageEvent(eventId) {
             fd.append("face_entries", JSON.stringify(faceEntries));
           }
 
-          uploadProgress.value = 70 + Math.round(((processedOffset + batch.length) / files.length) * 30);
+          uploadProgress.value = 65 + Math.round((processedOffset / files.length) * 35);
           $("#manageStatus").textContent = `Uploading & saving (${processedOffset + batch.length}/${files.length})…`;
           const result = await api(`/api/events/${encodeURIComponent(eventId)}/photos`, {
             method: "POST",
@@ -628,7 +628,7 @@ async function manageEvent(eventId) {
           indexedFacesTotal += Number(result.faces_indexed_total || 0);
           if (result.rejected?.length) allRejected.push(...result.rejected);
           processedOffset += batch.length;
-          uploadProgress.value = Math.round((processedOffset / files.length) * 100);
+          uploadProgress.value = 65 + Math.round((processedOffset / files.length) * 35);
         }
 
         await Promise.all([loadDashboard(), manageEvent(eventId)]);
