@@ -558,8 +558,8 @@ function createAuthRouter({ db, config, limiters }) {
       if (!token) {
         return res.status(400).json({ error: "Reset token is required" });
       }
-      if (newPassword.length < 6 || newPassword.length > 128) {
-        return res.status(400).json({ error: "New password must be between 6 and 128 characters" });
+      if (newPassword.length < 10 || newPassword.length > 128) {
+        return res.status(400).json({ error: "New password must be between 10 and 128 characters" });
       }
 
       const resetRow = await consumePasswordResetToken(db, token);
