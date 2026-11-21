@@ -774,7 +774,7 @@ $("#aiFind").onclick = async () => {
     showSelfiePreview(
       query.previewDataUrl,
       `Face analysed (${query.descriptors.length} variant${query.descriptors.length === 1 ? "" : "s"})`,
-      "Matched locally without uploading your selfie."
+      "Selfie image stays on this device; face descriptors are shared securely for server matching."
     );
 
     if (aiCancelled) return;
@@ -809,7 +809,7 @@ $("#aiFind").onclick = async () => {
         scores.set(m.photo_id, { distance: m.distance, confidence: m.confidence });
       }
       $("#aiStatus").textContent = matches.size
-        ? `Found ${matches.size} matching photo(s) across ${serverMatch.indexed_count} indexed photos. Your selfie stayed on your device.`
+        ? `Found ${matches.size} matching photo(s) across ${serverMatch.indexed_count} indexed photos. Selfie image stayed on device; descriptors were sent securely.`
         : `No matches found across ${serverMatch.indexed_count} indexed photos. Try ticking all 3 match options above or taking a clearer selfie.`;
     } else if (currentEvent?.selfie_only) {
       photos = [];
@@ -847,8 +847,8 @@ $("#aiFind").onclick = async () => {
         }
       }
       $("#aiStatus").textContent = matches.size
-        ? `Found ${matches.size} matching photo(s) across ${allPhotos.length} event photos. Your selfie was never uploaded.`
-        : `Scanned ${allPhotos.length} photo(s) with no strong match. Try ticking all 3 match options above.`;
+        ? `Found ${matches.size} matching photo(s) across ${allPhotos.length} event photos. Selfie image stayed on device; local matching was used.`
+        : `Scanned ${allPhotos.length} photo(s) with no strong match. Selfie stayed on device; scan was performed locally.`;
     }
 
     matchedPhotoIds = matches;
