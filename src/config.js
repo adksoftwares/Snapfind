@@ -78,7 +78,11 @@ function loadConfig(overrides = {}) {
   );
   const maxFilesPerUpload = Math.max(
     1,
-    Number(overrides.maxFilesPerUpload ?? env.MAX_FILES_PER_UPLOAD ?? 80)
+    Number(overrides.maxFilesPerUpload ?? env.MAX_FILES_PER_UPLOAD ?? 3)
+  );
+  const maxUploadBatchMb = Math.max(
+    1,
+    Number(overrides.maxUploadBatchMb ?? env.MAX_UPLOAD_BATCH_MB ?? (isVercel ? 4 : 60))
   );
   const maxStorageMbPerUser = Math.max(
     10,
@@ -136,6 +140,7 @@ function loadConfig(overrides = {}) {
     maxFileSizeMb,
     maxFileSizeBytes: maxFileSizeMb * 1024 * 1024,
     maxFilesPerUpload,
+    maxUploadBatchBytes: maxUploadBatchMb * 1024 * 1024,
     maxStorageMbPerUser,
     maxStorageBytesPerUser: overrides.maxStorageBytesPerUser ?? maxStorageMbPerUser * 1024 * 1024,
     sessionSecret,

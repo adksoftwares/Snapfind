@@ -137,6 +137,16 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
     },
   });
 
+  function checkUploadRequestSize(req, res, next) {
+    const contentLength = Number(req.headers["content-length"] || 0);
+    if (contentLength > config.maxUploadBatchBytes) {
+      return res.status(413).json({
+        error: `Upload request exceeds ${Math.round(config.maxUploadBatchBytes / (1024 * 1024))} MB batch limit`,
+      });
+    }
+    return next();
+  }
+
   async function checkQuotaBeforeUpload(req, res, next) {
     try {
       const { usedBytes, limitBytes } = await getStudioStorage(
@@ -446,6 +456,7 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
     requirePermission("photos:upload"),
     ownEvent,
     checkQuotaBeforeUpload,
+    checkUploadRequestSize,
     upload.array("photos", config.maxFilesPerUpload),
     async (req, res, next) => {
       const savedPhotos = [];
