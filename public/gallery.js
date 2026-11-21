@@ -687,6 +687,7 @@ function getAiMatchOptions() {
 
 $("#aiConsent").onchange = async (e) => {
   const checked = e.target.checked;
+  $("#aiConsent").disabled = true;
   setAiConsentControls(false);
   if (checked) {
     $("#aiStatus").textContent = "Confirming face-discovery consent for this gallery session…";
@@ -697,6 +698,8 @@ $("#aiConsent").onchange = async (e) => {
     } catch (err) {
       $("#aiConsent").checked = false;
       $("#aiStatus").textContent = err.message || "Consent could not be enabled. Please try again.";
+    } finally {
+      $("#aiConsent").disabled = false;
     }
     return;
   }
@@ -722,6 +725,8 @@ $("#aiConsent").onchange = async (e) => {
     $("#aiStatus").textContent = "Face discovery consent withdrawn; session match results cleared.";
   } catch {
     $("#aiStatus").textContent = "Consent withdrawn locally. Session results could not be cleared right now; close this gallery session to clear them when it expires.";
+  } finally {
+    $("#aiConsent").disabled = false;
   }
 };
 
