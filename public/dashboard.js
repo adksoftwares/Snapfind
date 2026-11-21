@@ -610,7 +610,7 @@ async function manageEvent(eventId) {
               } catch {
                 faceEntries.push({ indexed: false, descriptors: [] });
               }
-              uploadProgress.value = Math.round((overallIdx / files.length) * 65);
+              uploadProgress.value = Math.round((overallIdx / files.length) * 50);
             }
           }
 
@@ -618,7 +618,7 @@ async function manageEvent(eventId) {
             fd.append("face_entries", JSON.stringify(faceEntries));
           }
 
-          uploadProgress.value = 65 + Math.round((processedOffset / files.length) * 35);
+          uploadProgress.value = (canIndexOnUpload ? 50 : 0) + Math.round((processedOffset / files.length) * (canIndexOnUpload ? 50 : 100));
           $("#manageStatus").textContent = `Uploading & saving (${processedOffset + batch.length}/${files.length})…`;
           const result = await api(`/api/events/${encodeURIComponent(eventId)}/photos`, {
             method: "POST",
