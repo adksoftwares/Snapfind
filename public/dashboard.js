@@ -628,7 +628,7 @@ async function manageEvent(eventId) {
           indexedFacesTotal += Number(result.faces_indexed_total || 0);
           if (result.rejected?.length) allRejected.push(...result.rejected);
           processedOffset += batch.length;
-          uploadProgress.value = 65 + Math.round((processedOffset / files.length) * 35);
+          uploadProgress.value = (canIndexOnUpload ? 50 : 0) + Math.round((processedOffset / files.length) * (canIndexOnUpload ? 50 : 100));
         }
 
         await Promise.all([loadDashboard(), manageEvent(eventId)]);
