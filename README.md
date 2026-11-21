@@ -25,6 +25,7 @@ A self-hostable event photography delivery platform with multi-tenant studio iso
 ## Production deployment requirements
 
 - On Vercel production, configure `DATABASE_URL` to a durable managed PostgreSQL database and configure Vercel Blob credentials. The application now fails startup if either is missing rather than silently using ephemeral SQLite/filesystem storage.
+- Uploads are batched by the browser (at most 3 files and roughly 3 MB per batch). The server defaults to 3 files per request and rejects requests with a known `Content-Length` above `MAX_UPLOAD_BATCH_MB`; file-count and per-file limits also apply. Defaults are 4 MB on Vercel and 60 MB for local/self-hosted environments.
 - Keep `SESSION_SECRET` strong and unique, and configure `BASE_URL` to the canonical HTTPS origin.
 - Protected galleries are intentionally excluded from the public event directory; share their access code/QR directly with guests.
 - AI face discovery uses a conservative server-controlled matching threshold. Match scores are approximate similarity indicators, not verified identity or calibrated probabilities.
@@ -48,6 +49,7 @@ A self-hostable event photography delivery platform with multi-tenant studio iso
 - Alert on application 5xx spikes, database connection/timeout errors, Blob upload/delete failures, repeated authentication/MFA failures, password-reset delivery failures, and quota rejection trends.
 - Review Super Admin and studio security/audit events for unusual sign-in patterns; restrict log access because events contain IP/device metadata.
 - Keep production dependencies patched, deploy only reviewed commits, require HTTPS, and ensure the production environment has durable database and media storage before enabling traffic.
+- Every HTTP request carries an `X-Request-ID` response header. Use it to correlate a client error with server logs; unexpected failures are logged with the ID and error class, without dumping the full error/request body.
 - Avoid logging reset tokens, reset links, face descriptor vectors, guest selfies, or full request bodies. Do not share error logs containing personal data publicly.
 
 ### Face-discovery data lifecycle

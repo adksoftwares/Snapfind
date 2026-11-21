@@ -264,7 +264,7 @@ function renderPhotos() {
         <article class="gallery-photo ${isPicked ? "is-selected" : ""}">
           <div class="gallery-photo-media">
             <img loading="lazy" src="${esc(p.thumb_url)}" alt="${esc(p.caption || photoTitleFallback(p))}" data-open-lightbox="${esc(p.id)}">
-            ${matchInfo ? `<span class="match-badge">${matchInfo.confidence}% match</span>` : ""}
+            ${matchInfo ? `<span class="match-badge">Approx. similarity ${matchInfo.confidence}/100</span>` : ""}
             <label class="guest-dl-pick" title="Select photo for download">
               <input type="checkbox" class="guest-dl-cb" data-dl-pick="${esc(p.id)}" ${isPicked ? "checked" : ""}>
               <span>Pick</span>
