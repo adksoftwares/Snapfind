@@ -648,9 +648,10 @@ function openPostgresDatabase(databaseUrl) {
             ), 0)`
           );
           await client.query(
-            `INSERT INTO schema_migrations (version, name)
-             VALUES (5, 'reconcile_user_storage_usage')
-             ON CONFLICT (version) DO NOTHING`
+            `UPDATE users u SET storage_used_bytes = COALESCE((
+              SELECT SUM(p.total_bytes) FROM photos p JOIN events e ON e.id = p.event_id
+              WHERE e.owner_id = u.id
+            ), 0)`
           );
           await client.query(
             `INSERT INTO schema_migrations (version, name)
