@@ -326,7 +326,7 @@ function createGalleryRouter({ db, config, io, limiters }) {
         (d) =>
           Array.isArray(d) &&
           d.length === 128 &&
-          d.every((n) => typeof n === "number" && Number.isFinite(n))
+          d.every((n) => typeof n === "number" && Number.isFinite(n) && n >= -2 && n <= 2)
       );
 
       if (!queryDescriptors.length) {
@@ -342,7 +342,7 @@ function createGalleryRouter({ db, config, io, limiters }) {
       for (const r of rows) {
         try {
           const stored = JSON.parse(r.descriptor_json);
-          if (!Array.isArray(stored) || stored.length !== 128) continue;
+          if (!Array.isArray(stored) || stored.length !== 128 || !stored.every((n) => typeof n === "number" && Number.isFinite(n) && n >= -2 && n <= 2)) continue;
           let dist = 1;
           for (const q of queryDescriptors) {
             const d = euclideanDistance(q, stored);
