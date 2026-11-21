@@ -181,7 +181,11 @@ async function processUploadedImage(uploadDirOrConfig, eventId, filePath, origin
       ]);
     } catch (err) {
       // A partial parallel upload can leave one or two variants behind.
-      await delBlobs(blobPaths).catch(() => {});
+      await delBlobs(blobPaths).catch((cleanupErr) => {
+        console.error("[SnapFind] Partial blob upload cleanup failed", {
+          errorName: String(cleanupErr?.name || "Error").slice(0, 80),
+        });
+      });
       throw err;
     }
 
@@ -340,7 +344,14 @@ async function deleteManyPhotoFiles(uploadDirOrConfig, photos) {
     const CHUNK = 100;
     const tasks = [];
     for (let i = 0; i < pathnames.length; i += CHUNK) {
-      tasks.push(delBlobs(pathnames.slice(i, i + CHUNK)).catch(() => {}));
+      tasks.push(
+        delBlobs(pathnames.slice(i, i + CHUNK)).catch((cleanupErr) => {
+          console.error("[SnapFind] Blob photo deletion failed", {
+            variantCount: Math.min(CHUNK, pathnames.length - i),
+            errorName: String(cleanupErr?.name || "Error").slice(0, 80),
+          });
+        })
+      );
     }
     await Promise.all(tasks);
     return;
@@ -385,8 +396,11 @@ async function deleteEventMediaDir(uploadDirOrConfig, eventId) {
         }
         cursor = res.hasMore ? res.cursor : undefined;
       } while (cursor);
-    } catch {
-      // ignore blob cleanup failure
+    } catch (cleanupErr) {
+      console.error("[SnapFind] Event media cleanup failed", {
+        eventId,
+        errorName: String(cleanupErr?.name || "Error").slice(0, 80),
+      });
     }
     return;
   }
