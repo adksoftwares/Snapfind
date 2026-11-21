@@ -33,19 +33,20 @@ A self-hostable event photography delivery platform with multi-tenant studio iso
 ## Backup, recovery & operational safeguards
 
 ### Backup policy
-- **PostgreSQL:** schedule managed-provider backups and point-in-time recovery where available. For an additional portable backup, use `pg_dump -Fc` with a restricted backup identity and encrypt the resulting file before moving it off-site.
+- **PostgreSQL:** schedule managed-provider backups and point-in-time recovery where available. For an additional portable backup, use `pg_dump -Fc` with a restricted backup identity and encrypt the resulting file before moving it off-site. Example: `pg_dump --format=custom --no-owner --file=snapfind-db.dump "$DATABASE_URL"`.
 - **Vercel Blob:** the database backup does not contain image files. Maintain a separate export/mirror of the `events/<event-id>/originals`, `previews`, and `thumbs` objects, using a private storage identity. Confirm object counts and checksums during backup; do not assume a database backup covers Blob content.
 - **Local/self-hosted:** stop writes before copying the SQLite database and media directory, or use SQLite's online backup facility. Never copy an actively-written SQLite file without a consistent backup procedure.
 - Store backups separately from the application and protect them with encryption, access controls, and retention limits. Do not put backup archives, production database URLs, API keys, or media tokens in Git.
 
 ### Recovery checklist
-1. Provision the same supported database and media storage, then restore the database backup.
+1. Provision the same supported database and media storage, then restore the database backup. For a custom-format dump, restore to the intended database using `pg_restore --clean --if-exists --no-owner --dbname "$DATABASE_URL" snapfind-db.dump` (the clean option removes conflicting objects; confirm the target before using it).
 2. Restore the corresponding media objects/files so photo rows and referenced variants are available.
 3. Reconfigure the original `SESSION_SECRET`, `MEDIA_SIGNING_SECRET`, `BASE_URL`, database URL, and Blob credentials. Changing signing secrets invalidates existing signed media links.
 4. Confirm the restored database schema migrations are current, verify restored event/photo counts against backup records, and check that a small set of original/preview/thumb objects can be retrieved privately.
 5. Record the recovery outcome and any data-loss window. Schedule periodic restore drills; a backup that has never been restored is not proven recoverable.
 
 ### Monitoring and deployment operations
+- Configure uptime monitoring against `/healthz`; it returns a generic 200 response when the database is reachable or 503 when readiness fails, without exposing connection details.
 - Alert on application 5xx spikes, database connection/timeout errors, Blob upload/delete failures, repeated authentication/MFA failures, password-reset delivery failures, and quota rejection trends.
 - Review Super Admin and studio security/audit events for unusual sign-in patterns; restrict log access because events contain IP/device metadata.
 - Keep production dependencies patched, deploy only reviewed commits, require HTTPS, and ensure the production environment has durable database and media storage before enabling traffic.
