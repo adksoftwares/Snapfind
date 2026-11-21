@@ -357,10 +357,9 @@ function createGalleryRouter({ db, config, io, limiters }) {
         }
       }
 
-      const requestedThreshold = Number(req.body?.threshold);
-      const threshold = Number.isFinite(requestedThreshold)
-        ? Math.min(0.68, Math.max(0.45, requestedThreshold))
-        : 0.63;
+      // Keep face matching conservative and server-controlled. Client-adjustable
+      // thresholds can increase false positives and expose unrelated guests' photos.
+      const threshold = 0.58;
       const matches = [];
       for (const [photo_id, distance] of bestByPhoto.entries()) {
         if (distance < threshold) {
