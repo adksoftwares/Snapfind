@@ -152,7 +152,7 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
       const { usedBytes, limitBytes } = await getStudioStorage(
         db,
         config,
-        req.event.studio_id || req.user.studio_id,
+        req.event.studio_id || null,
         req.event.owner_id
       );
       const contentLength = Number(req.headers["content-length"] || 0);
