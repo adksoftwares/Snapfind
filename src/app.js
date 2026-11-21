@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const http = require("node:http");
+const crypto = require("node:crypto");
 const path = require("node:path");
 const express = require("express");
 const session = require("express-session");
@@ -46,6 +47,13 @@ function createApp(options = {}) {
   const app = express();
   const server = http.createServer(app);
   const io = new Server(server);
+
+  app.use((req, res, next) => {
+    const requestId = crypto.randomUUID();
+    req.requestId = requestId;
+    res.setHeader("X-Request-ID", requestId);
+    next();
+  });
 
   app.set("trust proxy", 1);
 
@@ -214,22 +222,27 @@ function createApp(options = {}) {
   });
 
   app.use((err, req, res, next) => {
+    const requestId = req.requestId || "unknown";
     if (err instanceof multer.MulterError) {
-      if (err.code === "LIMIT_FILE_SIZE") {
-        return res
-          .status(400)
-          .json({ error: `Image exceeds ${config.maxFileSizeMb} MB upload limit` });
-      }
-      return res.status(400).json({ error: `Upload error: ${err.message}` });
+      const status = ["LIMIT_FILE_SIZE", "LIMIT_FILE_COUNT", "LIMIT_FIELD_COUNT", "LIMIT_PART_COUNT"].includes(err.code) ? 413 : 400;
+      const message = err.code === "LIMIT_FILE_SIZE"
+        ? `Image exceeds ${config.maxFileSizeMb} MB upload limit`
+        : status === 413
+          ? "Upload request exceeds configured limits"
+          : "Upload request could not be processed";
+      return res.status(status).json({ error: message, request_id: requestId });
     }
     if (err?.type === "entity.parse.failed") {
-      return res.status(400).json({ error: "Invalid JSON payload" });
+      return res.status(400).json({ error: "Invalid JSON payload", request_id: requestId });
     }
     if (err?.status && err.status < 500) {
-      return res.status(err.status).json({ error: err.message });
+      return res.status(err.status).json({ error: err.message, request_id: requestId });
     }
-    console.error("[SnapFind] Unexpected server error:", err);
-    return res.status(500).json({ error: "Unexpected server error" });
+    console.error("[SnapFind] Unexpected server error", {
+      requestId,
+      errorName: String(err?.name || "Error").slice(0, 80),
+    });
+    return res.status(500).json({ error: "Unexpected server error", request_id: requestId });
   });
 
   async function close() {
