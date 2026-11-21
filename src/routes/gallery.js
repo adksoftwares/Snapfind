@@ -73,6 +73,7 @@ function createGalleryRouter({ db, config, io, limiters }) {
          JOIN users u ON u.id = e.owner_id
          LEFT JOIN studios s ON s.id = e.studio_id
          WHERE e.is_public = 1
+           AND e.pin_hash IS NULL
            AND e.status = 'active'
            AND COALESCE(s.status, 'active') = 'active'
          ORDER BY e.created_at DESC
