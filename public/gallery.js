@@ -264,7 +264,7 @@ function renderPhotos() {
       return `
         <article class="gallery-photo ${isPicked ? "is-selected" : ""}">
           <div class="gallery-photo-media">
-            <img loading="lazy" src="${esc(p.thumb_url)}" alt="${esc(p.caption || photoTitleFallback(p))}" data-open-lightbox="${esc(p.id)}">
+            <img loading="lazy" src="${esc(p.thumb_url)}" alt="${esc(p.caption || photoTitleFallback(p))}" role="button" tabindex="0" aria-label="Open photo: ${esc(p.caption || photoTitleFallback(p))}" data-open-lightbox="${esc(p.id)}">
             ${matchInfo ? `<span class="match-badge">Approx. similarity ${matchInfo.confidence}/100</span>` : ""}
             <label class="guest-dl-pick" title="Select photo for download">
               <input type="checkbox" class="guest-dl-cb" data-dl-pick="${esc(p.id)}" ${isPicked ? "checked" : ""}>
@@ -274,9 +274,9 @@ function renderPhotos() {
           <div>
             <span class="photo-title">${esc(p.caption || p.original_name || "Event moment")}</span>
             <div class="gallery-actions">
-              <button type="button" class="${isFav ? "fav-on" : ""}" data-fav-toggle="${esc(p.id)}" title="Favourite">${isFav ? "♥" : "♡"}</button>
-              <button type="button" data-select-photo="${esc(p.id)}" title="Request photo from studio" ${isSel ? "disabled" : ""}>${isSel ? "✓ Selected" : "Select"}</button>
-              <a href="${esc(downloadUrl(p.url))}" download="${esc(p.original_name)}" title="Download original">↓</a>
+              <button type="button" class="${isFav ? "fav-on" : ""}" data-fav-toggle="${esc(p.id)}" aria-label="${isFav ? "Remove from favourites" : "Add to favourites"}" aria-pressed="${isFav}" title="${isFav ? "Remove favourite" : "Add favourite"}">${isFav ? "♥" : "♡"}</button>
+              <button type="button" data-select-photo="${esc(p.id)}" aria-label="${isSel ? "Photo already selected" : "Request this photo from the studio"}" title="Request photo from studio" ${isSel ? "disabled" : ""}>${isSel ? "✓ Selected" : "Select"}</button>
+              <a href="${esc(downloadUrl(p.url))}" download="${esc(p.original_name)}" aria-label="Download original: ${esc(p.original_name || "photo")}" title="Download original">↓</a>
             </div>
           </div>
         </article>
@@ -321,7 +321,7 @@ function renderPhotos() {
   });
 
   document.querySelectorAll("[data-open-lightbox]").forEach((img) => {
-    img.onclick = () => openLightbox(img.dataset.openLightbox);
+    img.onclick = () => openLightbox(img.dataset.openLightbox);\n    img.onkeydown = (event) => {\n      if (event.key === "Enter" || event.key === " ") {\n        event.preventDefault();\n        openLightbox(img.dataset.openLightbox);\n      }\n    };
   });
 
   document.querySelectorAll("[data-fav-toggle]").forEach((btn) => {
