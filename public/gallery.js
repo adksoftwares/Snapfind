@@ -115,6 +115,7 @@ function syncGuestBulkBar(visible = getVisiblePhotos()) {
 
   $("#guestShownCount").textContent = String(visible.length);
   $("#guestDownloadCount").textContent = `${totalPicked} selected`;
+  $("#guestBulkStatus").textContent = `${totalPicked} photo(s) selected for download.`;
   const selectAllEl = $("#guestSelectAll");
   selectAllEl.checked = visiblePickedCount > 0 && visiblePickedCount === visible.length;
   selectAllEl.indeterminate = visiblePickedCount > 0 && visiblePickedCount < visible.length;
@@ -636,12 +637,17 @@ $("#guestSelectAll").onchange = () => {
     else downloadPickSet.delete(p.id);
   }
   renderPhotos();
+  $("#guestBulkStatus").textContent = checked
+    ? `${visible.length} visible photo(s) selected.`
+    : "Visible photo selection cleared.";
 };
 
 $("#guestClearPickBtn").onclick = () => {
   downloadPickSet.clear();
   renderPhotos();
+  $("#guestBulkStatus").textContent = "All download selections cleared.";
 };
+
 
 $("#guestDownloadSelectedBtn").onclick = async () => {
   const picked = photos.filter((p) => downloadPickSet.has(p.id));
@@ -656,13 +662,16 @@ $("#guestDownloadSelectedBtn").onclick = async () => {
     document.body.appendChild(a);
     a.click();
     a.remove();
+    $("#guestBulkStatus").textContent = "Single photo download started.";
     return;
   }
+
 
   const btn = $("#guestDownloadSelectedBtn");
   btn.disabled = true;
   let completed = 0;
   btn.textContent = `Preparing ZIP (0/${picked.length})…`;
+  $("#guestBulkStatus").textContent = `Preparing a ZIP archive of ${picked.length} photos.`;
 
   try {
     const usedNames = new Set();
@@ -682,6 +691,7 @@ $("#guestDownloadSelectedBtn").onclick = async () => {
         };
         completed += 1;
         btn.textContent = `Preparing ZIP (${completed}/${picked.length})…`;
+        $("#guestBulkStatus").textContent = `Downloaded ${completed} of ${picked.length} photos into the archive.`;
       }
     }
 
@@ -693,8 +703,10 @@ $("#guestDownloadSelectedBtn").onclick = async () => {
       .replace(/^-|-$/g, "") || "snapfind";
     triggerBlobDownload(zipBlob, `${safeTitle}-photos.zip`);
     $("#galleryMessage").textContent = `Downloaded ${picked.length} photo(s) in ${safeTitle}-photos.zip.`;
+    $("#guestBulkStatus").textContent = `ZIP download started for ${picked.length} photos.`;
   } catch (err) {
     $("#galleryError").textContent = err.message || "Bulk download failed";
+    $("#guestBulkStatus").textContent = "Bulk download failed. See the error message above.";
   } finally {
     btn.disabled = false;
     syncGuestBulkBar();
