@@ -633,7 +633,7 @@ async function manageEvent(eventId) {
         if (rejectedTypes.length) $("#manageError").textContent = "Choose JPEG, PNG, WebP or GIF photo files.";
         return;
       }
-      if (rejectedTypes.length) $("#manageError").textContent = "Skipped " + rejectedTypes.length + " unsupported file(s).";
+      const unsupportedMessage = rejectedTypes.length ? "Skipped " + rejectedTypes.length + " unsupported file(s). " : "";
       $("#manageError").textContent = "";
       const uploadProgress = $("#uploadProgress");
       uploadProgress.value = 0;
@@ -714,7 +714,9 @@ async function manageEvent(eventId) {
 
         await Promise.all([loadDashboard(), manageEvent(eventId)]);
         if (allRejected.length) {
-          $("#manageError").textContent = `Skipped ${allRejected.length} invalid file(s): ${allRejected.map((r) => r.name).join(", ")}`;
+          $("#manageError").textContent = unsupportedMessage + `Skipped ${allRejected.length} invalid file(s): ${allRejected.map((r) => r.name).join(", ")}`;
+        } else if (unsupportedMessage) {
+          $("#manageError").textContent = unsupportedMessage;
         }
         if (uploadedCount > 0) {
           $("#manageStatus").textContent = canIndexOnUpload
@@ -734,6 +736,7 @@ async function manageEvent(eventId) {
 
     const dropzone = $("#photoDropzone");
     if (dropzone) {
+      dropzone.addEventListener("click", () => $("#photoUpload").click());
       ["dragenter", "dragover"].forEach((eventName) => {
         dropzone.addEventListener(eventName, (ev) => {
           ev.preventDefault(); ev.stopPropagation(); dropzone.classList.add("is-dragover");
