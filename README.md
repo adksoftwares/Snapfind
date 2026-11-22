@@ -57,7 +57,7 @@ A self-hostable event photography delivery platform with multi-tenant studio iso
 ### Face-discovery data lifecycle
 - The uploaded guest selfie is processed in the browser; the image is not sent to SnapFind. When matching is requested, descriptor vectors are sent securely to the server for comparison and are not persisted as query data.
 - Match results (photo IDs) are held in the server-side session until the guest clears the scan or the session expires.
-- Face descriptors are encrypted with AES-256-GCM at rest. A startup migration converts valid legacy plaintext descriptor rows; descriptors that are malformed are skipped and left for manual cleanup. The encryption key is independent from the session and media signing keys.
+- Face descriptors are encrypted with AES-256-GCM at rest. A startup migration converts valid legacy plaintext descriptor rows; malformed legacy vectors are deleted because they cannot be used for matching. The encryption key is independent from the session and media signing keys.
 - Event photo descriptors are stored while AI face discovery is enabled. Disable AI face discovery or clear indexing to delete descriptors; photo deletion cascades to associated descriptors. Retain event photos and guest selections only for the studio's stated purpose and delete them when no longer needed.
 
 ## Run

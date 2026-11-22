@@ -56,21 +56,36 @@ async function migrateLegacyFaceDescriptors(db, config, batchSize = 500) {
   let totalMigrated = 0;
   while (true) {
     const rows = await db.all(
-      "SELECT id, descriptor_json FROM photo_faces WHERE descriptor_json NOT LIKE ? LIMIT ?",
+      "SELECT id, photo_id, descriptor_json FROM photo_faces WHERE descriptor_json NOT LIKE ? LIMIT ?",
       `${ENCRYPTED_PREFIX}%`,
       batchSize
     );
     if (!rows.length) break;
-    let batchMigrated = 0;
+    let batchProgress = 0;
     await db.tx(async (tx) => {
       for (const row of rows) {
         let descriptor;
         try {
           descriptor = JSON.parse(row.descriptor_json);
         } catch {
+          descriptor = null;
+        }
+        if (!isValidFaceDescriptor(descriptor)) {
+          const deleted = await tx.run(
+            "DELETE FROM photo_faces WHERE id = ? AND descriptor_json = ?",
+            row.id,
+            row.descriptor_json
+          );
+          batchProgress += Number(deleted?.changes || 0);
+          if (row.photo_id) {
+            await tx.run(
+              "UPDATE photos SET face_indexed = 0 WHERE id = ? AND NOT EXISTS (SELECT 1 FROM photo_faces WHERE photo_id = ?)",
+              row.photo_id,
+              row.photo_id
+            );
+          }
           continue;
         }
-        if (!isValidFaceDescriptor(descriptor)) continue;
         const encrypted = encryptFaceDescriptor(config, descriptor);
         const result = await tx.run(
           "UPDATE photo_faces SET descriptor_json = ? WHERE id = ? AND descriptor_json = ?",
@@ -78,11 +93,11 @@ async function migrateLegacyFaceDescriptors(db, config, batchSize = 500) {
           row.id,
           row.descriptor_json
         );
-        batchMigrated += Number(result?.changes || 0);
+        batchProgress += Number(result?.changes || 0);
       }
     });
-    totalMigrated += batchMigrated;
-    if (!batchMigrated) break; // malformed legacy rows or concurrent conversion
+    totalMigrated += batchProgress;
+    if (!batchProgress) break; // concurrent conversion
   }
   return totalMigrated;
 }

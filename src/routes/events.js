@@ -484,10 +484,14 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
         const currentUsed = req.studioStorageUsed ?? 0;
         const limitBytes = req.studioStorageLimit ?? config.maxStorageBytesPerUser;
         const incomingRawBytes = files.reduce((sum, f) => sum + (f.size || 0), 0);
+        const incomingFieldBytes = Object.entries(req.body || {}).reduce((sum, [key, value]) => {
+          const values = Array.isArray(value) ? value : [value];
+          return sum + Buffer.byteLength(key) + values.reduce((bytes, field) => bytes + Buffer.byteLength(String(field ?? "")), 0);
+        }, 0);
 
         // Content-Length is optional (chunked multipart requests may omit it), so
         // enforce the configured aggregate limit after Multer has measured files.
-        if (incomingRawBytes > config.maxUploadBatchBytes) {
+        if (incomingRawBytes + incomingFieldBytes > config.maxUploadBatchBytes) {
           return res.status(413).json({
             error: `Upload batch exceeds ${Math.round(config.maxUploadBatchBytes / (1024 * 1024))} MB limit`,
           });

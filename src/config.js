@@ -44,7 +44,7 @@ function loadConfig(overrides = {}) {
   let parsedBaseUrl;
   try {
     parsedBaseUrl = new URL(baseUrlInput);
-    if (!["http:", "https:"].includes(parsedBaseUrl.protocol) || parsedBaseUrl.username || parsedBaseUrl.password || parsedBaseUrl.search || parsedBaseUrl.hash) {
+    if (!["http:", "https:"].includes(parsedBaseUrl.protocol) || parsedBaseUrl.username || parsedBaseUrl.password || parsedBaseUrl.search || parsedBaseUrl.hash || parsedBaseUrl.pathname !== "/") {
       throw new Error("BASE_URL must be an HTTP(S) URL without credentials, query, or fragment.");
     }
     if (isProduction && parsedBaseUrl.protocol !== "https:") {
