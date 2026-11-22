@@ -2047,3 +2047,91 @@ footer { background: #232e27; }
   .guest-bulk-bar .bulk-photo-actions { flex-direction:row; flex-wrap:wrap; }
   .pagination .btn { min-width:104px; }
 }
+
+
+/* ── Workspace refinement: accessibility, clarity & touch ergonomics ── */
+:root {
+  --sf-focus: #6e8b48;
+  --sf-focus-ring: rgba(110,139,72,.22);
+  --sf-border-strong: #c9cec3;
+}
+html { scroll-padding-top: 84px; }
+button, a, input, select, textarea, [role="button"] { touch-action: manipulation; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible,
+textarea:focus-visible, [role="button"]:focus-visible {
+  outline: 2px solid var(--sf-focus);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px var(--sf-focus-ring);
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+textarea, select {
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+input:disabled, select:disabled, textarea:disabled {
+  opacity: .65;
+  cursor: not-allowed;
+  background: #f1f1eb !important;
+}
+input[aria-invalid="true"], textarea[aria-invalid="true"], select[aria-invalid="true"] {
+  border-color: #b75b51 !important;
+  box-shadow: 0 0 0 3px rgba(183,91,81,.12);
+}
+.error:empty, .success-msg:empty { display:none; }
+.error, [role="alert"].error { line-height:1.5; }
+.success-msg { color:#456b35; line-height:1.5; }
+.btn, .tab-btn, .gallery-actions button, .gallery-actions a, .file-picker {
+  user-select:none;
+  -webkit-user-select:none;
+}
+.btn:not(.sm) { min-height:44px; }
+.btn.sm { min-height:38px; }
+.tab-btn { min-height:40px; }
+.textlink { text-underline-offset:3px; }
+.textlink:hover, .top nav a:hover { text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:4px; }
+.top nav a, .top nav button { min-height:38px; display:inline-flex; align-items:center; }
+.dash-section, .stat, .event-card, .panel-box, .pin-gate, .ai-panel { scroll-margin-top:90px; }
+.event-card:focus-within, .public-card:focus-within, .gallery-photo:focus-within {
+  border-color:var(--sf-border-strong);
+}
+.gallery-tools { align-items:stretch; }
+.gallery-tools input { min-height:44px; }
+.gallery-filters { flex-wrap:wrap; }
+.gallery-photo-media { position:relative; overflow:hidden; }
+.gallery-photo-media img { display:block; width:100%; }
+.gallery-photo-media img:focus-visible { outline-offset:-4px; }
+.guest-dl-pick, .photo-select-toggle { cursor:pointer; }
+.guest-dl-pick input, .photo-select-toggle input { min-width:18px; min-height:18px; }
+.pagination { align-items:center; justify-content:center; gap:10px; }
+#pageInfo { text-align:center; min-width:100px; }
+.empty-card, .empty { padding:clamp(18px, 3vw, 28px); line-height:1.65; }
+.toast { gap:12px; align-items:center; }
+.toast button { min-height:38px; }
+.profile-form button, .manage-actions button { min-height:42px; }
+.table-wrap { max-width:100%; overscroll-behavior-x:contain; }
+.table-wrap table { min-width:640px; }
+#eventForm label, #staffForm label, #authForm label { line-height:1.45; }
+dialog form > .btn.full { margin-top:12px; }
+@media (max-width:900px) {
+  .top nav { flex-wrap:wrap; justify-content:flex-end; }
+  .gallery-tools { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .gallery-tools #gallerySearch { grid-column:1/-1; }
+}
+@media (max-width:540px) {
+  html { scroll-padding-top:72px; }
+  .top nav { width:100%; justify-content:flex-start; gap:6px; }
+  .top nav a:not(.btn) { padding:6px 2px; }
+  .top nav .btn { flex:1 1 auto; }
+  .gallery-tools { grid-template-columns:1fr; }
+  .gallery-tools #gallerySearch { grid-column:auto; }
+  .gallery-filters { display:flex; width:100%; }
+  .gallery-filters .tab-btn { flex:1 1 auto; min-width:0; }
+  .bulk-photo-bar { align-items:flex-start; }
+  .guest-bulk-bar .bulk-photo-actions .btn { flex:1 1 auto; }
+  .toast { flex-wrap:wrap; }
+  .table-wrap { -webkit-overflow-scrolling:touch; }
+  .pagination { gap:6px; }
+  #pageInfo { flex:1 1 100%; order:-1; }
+}
+@media (prefers-reduced-motion:reduce) {
+  html { scroll-behavior:auto; }
+}
