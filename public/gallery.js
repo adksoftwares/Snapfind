@@ -385,15 +385,26 @@ function openLightbox(photoId) {
         <b>${esc(photo.caption || photo.original_name || "Event moment")}</b>
         <p class="muted">${photo.width && photo.height ? `${photo.width} × ${photo.height}px` : ""}</p>
       </div>
-      <div class="gallery-actions">
+      <div class="gallery-actions lightbox-nav-actions">
+        <button class="btn sm ghost" id="lbPrev" type="button" aria-label="Previous photo">← Previous</button>
+        <span class="lightbox-position" id="lbPosition"></span>
+        <button class="btn sm ghost" id="lbNext" type="button" aria-label="Next photo">Next →</button>
         <button class="btn sm ghost" id="lbFav" type="button">${isFav ? "♥ Favourited" : "♡ Favourite"}</button>
         <button class="btn sm ghost" id="lbSelect" type="button" ${isSel ? "disabled" : ""}>${isSel ? "✓ Selected" : "Request / Select"}</button>
         <a class="btn sm" href="${esc(downloadUrl(photo.url))}" download="${esc(photo.original_name)}">↓ Download original</a>
-      </div>
+      </div>/div>
     </div>
   `;
 
-  const lbList = getVisiblePhotos();\n  const lbIndex = lbList.findIndex((p) => p.id === photoId);\n  $("#lbPosition").textContent = lbIndex >= 0 ? `${lbIndex + 1} of ${lbList.length}` : "";\n  $("#lbPrev").disabled = lbIndex <= 0;\n  $("#lbNext").disabled = lbIndex < 0 || lbIndex >= lbList.length - 1;\n  $("#lbPrev").onclick = () => moveLightbox(-1);\n  $("#lbNext").onclick = () => moveLightbox(1);\n\n  $("#lbFav").onclick = async () => {
+  const lbList = getVisiblePhotos();
+  const lbIndex = lbList.findIndex((p) => p.id === photoId);
+  $("#lbPosition").textContent = lbIndex >= 0 ? `${lbIndex + 1} of ${lbList.length}` : "";
+  $("#lbPrev").disabled = lbIndex <= 0;
+  $("#lbNext").disabled = lbIndex < 0 || lbIndex >= lbList.length - 1;
+  $("#lbPrev").onclick = () => moveLightbox(-1);
+  $("#lbNext").onclick = () => moveLightbox(1);
+
+  $("#lbFav").onclick = async () => {
     await toggleFavourite(photo.id);
     openLightbox(photo.id);
   };
