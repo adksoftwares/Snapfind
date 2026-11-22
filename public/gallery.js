@@ -91,14 +91,6 @@ function updateFilterCounts() {
   } else {
     $("#aiFilterTab").classList.add("hidden");
   }
-  $("#gallerySearchClear").onclick = () => {
-  $("#gallerySearch").value = "";
-  $("#gallerySearchClear").classList.add("hidden");
-  clearTimeout(searchTimer);
-  loadGallery(1);
-  $("#gallerySearch").focus();
-};
-
 document.querySelectorAll("[data-filter]").forEach((btn) => {
     const isActive = btn.dataset.filter === activeFilter;
     btn.classList.toggle("active", isActive);
@@ -592,6 +584,14 @@ $("#gallerySearch").oninput = () => {
   $("#gallerySearchClear").classList.toggle("hidden", !$("#gallerySearch").value);
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => loadGallery(1), 250);
+};
+
+$("#gallerySearchClear").onclick = () => {
+  $("#gallerySearch").value = "";
+  $("#gallerySearchClear").classList.add("hidden");
+  clearTimeout(searchTimer);
+  loadGallery(1);
+  $("#gallerySearch").focus();
 };
 
 document.querySelectorAll("[data-filter]").forEach((btn) => {
