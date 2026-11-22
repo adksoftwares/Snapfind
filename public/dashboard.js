@@ -489,6 +489,17 @@ async function manageEvent(eventId) {
       <a class="btn ghost" target="_blank" href="/gallery/${encodeURIComponent(e.access_code)}">Open gallery ↗</a>
     </div>
 
+    ${
+      canUpload
+        ? `<div id="photoDropzone" class="photo-dropzone" tabindex="0" role="button" aria-label="Drop photos here or choose files to upload">
+            <span class="photo-dropzone-icon" aria-hidden="true">↥</span>
+            <strong>Drop photos here</strong>
+            <span>or use Upload photos above · JPEG, PNG, WebP or GIF</span>
+          </div>`
+        : ""
+    }
+
+
     <p id="manageStatus" class="muted" role="status" aria-live="polite"></p>
     <progress id="uploadProgress" class="upload-progress hidden" max="100" value="0" aria-label="Photo upload progress"></progress>
     <p id="manageError" class="error" role="alert"></p>
@@ -613,14 +624,21 @@ async function manageEvent(eventId) {
   };
 
   if ($("#photoUpload")) {
-    $("#photoUpload").onchange = async (ev) => {
-      const files = [...ev.target.files];
-      if (!files.length) return;
+    const handlePhotoUpload = async (incomingFiles) => {
+      const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+      const files = [...incomingFiles].filter((file) => acceptedTypes.has(file.type));
+      const rejectedTypes = [...incomingFiles].filter((file) => !acceptedTypes.has(file.type));
+      if (!files.length) {
+        $("#manageStatus").textContent = "";
+        if (rejectedTypes.length) $("#manageError").textContent = "Choose JPEG, PNG, WebP or GIF photo files.";
+        return;
+      }
+      const unsupportedMessage = rejectedTypes.length ? "Skipped " + rejectedTypes.length + " unsupported file(s). " : "";
       $("#manageError").textContent = "";
       const uploadProgress = $("#uploadProgress");
       uploadProgress.value = 0;
       uploadProgress.classList.remove("hidden");
-      ev.target.value = "";
+
 
       const canIndexOnUpload = Boolean(e.ai_enabled && window.SnapFindFace);
       if (canIndexOnUpload) {
@@ -696,7 +714,9 @@ async function manageEvent(eventId) {
 
         await Promise.all([loadDashboard(), manageEvent(eventId)]);
         if (allRejected.length) {
-          $("#manageError").textContent = `Skipped ${allRejected.length} invalid file(s): ${allRejected.map((r) => r.name).join(", ")}`;
+          $("#manageError").textContent = unsupportedMessage + `Skipped ${allRejected.length} invalid file(s): ${allRejected.map((r) => r.name).join(", ")}`;
+        } else if (unsupportedMessage) {
+          $("#manageError").textContent = unsupportedMessage;
         }
         if (uploadedCount > 0) {
           $("#manageStatus").textContent = canIndexOnUpload
@@ -708,6 +728,34 @@ async function manageEvent(eventId) {
         $("#manageError").textContent = err.message;
       }
     };
+
+    $("#photoUpload").onchange = (ev) => {
+      handlePhotoUpload(ev.target.files);
+      ev.target.value = "";
+    };
+
+    const dropzone = $("#photoDropzone");
+    if (dropzone) {
+      dropzone.addEventListener("click", () => $("#photoUpload").click());
+      ["dragenter", "dragover"].forEach((eventName) => {
+        dropzone.addEventListener(eventName, (ev) => {
+          ev.preventDefault(); ev.stopPropagation(); dropzone.classList.add("is-dragover");
+        });
+      });
+      ["dragleave", "dragend"].forEach((eventName) => {
+        dropzone.addEventListener(eventName, (ev) => {
+          ev.preventDefault();
+          if (!dropzone.contains(ev.relatedTarget)) dropzone.classList.remove("is-dragover");
+        });
+      });
+      dropzone.addEventListener("drop", (ev) => {
+        ev.preventDefault(); ev.stopPropagation(); dropzone.classList.remove("is-dragover");
+        if (ev.dataTransfer && ev.dataTransfer.files.length) handlePhotoUpload(ev.dataTransfer.files);
+      });
+      dropzone.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); $("#photoUpload").click(); }
+      });
+    }
   }
 
   if ($("#selectionBtn")) {
