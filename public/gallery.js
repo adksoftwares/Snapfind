@@ -31,7 +31,7 @@ let currentPage = 1;
 let totalPages = 1;
 let searchTimer = null;
 let aiCancelled = false;
-let socket = null;
+let socket = null;\nlet lightboxPhotoId = null;
 
 function esc(value = "") {
   return String(value).replace(/[&<>"']/g, (c) => ({
@@ -385,13 +385,24 @@ function openLightbox(photoId) {
         <b>${esc(photo.caption || photo.original_name || "Event moment")}</b>
         <p class="muted">${photo.width && photo.height ? `${photo.width} × ${photo.height}px` : ""}</p>
       </div>
-      <div class="gallery-actions">
+      <div class="gallery-actions lightbox-nav-actions">
+        <button class="btn sm ghost" id="lbPrev" type="button" aria-label="Previous photo">← Previous</button>
+        <span class="lightbox-position" id="lbPosition"></span>
+        <button class="btn sm ghost" id="lbNext" type="button" aria-label="Next photo">Next →</button>
         <button class="btn sm ghost" id="lbFav" type="button">${isFav ? "♥ Favourited" : "♡ Favourite"}</button>
         <button class="btn sm ghost" id="lbSelect" type="button" ${isSel ? "disabled" : ""}>${isSel ? "✓ Selected" : "Request / Select"}</button>
         <a class="btn sm" href="${esc(downloadUrl(photo.url))}" download="${esc(photo.original_name)}">↓ Download original</a>
       </div>
     </div>
   `;
+
+  const lbList = getVisiblePhotos();
+  const lbIndex = lbList.findIndex((p) => p.id === photoId);
+  $("#lbPosition").textContent = lbIndex >= 0 ? `${lbIndex + 1} of ${lbList.length}` : "";
+  $("#lbPrev").disabled = lbIndex <= 0;
+  $("#lbNext").disabled = lbIndex < 0 || lbIndex >= lbList.length - 1;
+  $("#lbPrev").onclick = () => moveLightbox(-1);
+  $("#lbNext").onclick = () => moveLightbox(1);
 
   $("#lbFav").onclick = async () => {
     await toggleFavourite(photo.id);
@@ -406,6 +417,24 @@ function openLightbox(photoId) {
     $("#lightboxDialog").showModal();
   }
 }
+
+function moveLightbox(direction) {
+  const list = getVisiblePhotos();
+  const index = list.findIndex((p) => p.id === lightboxPhotoId);
+  const next = index + direction;
+  if (next >= 0 && next < list.length) openLightbox(list[next].id);
+}
+
+document.addEventListener("keydown", (event) => {
+  if (!$("#lightboxDialog")?.open) return;
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    moveLightbox(-1);
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault();
+    moveLightbox(1);
+  }
+});
 
 $("#lightboxClose").onclick = () => $("#lightboxDialog").close();
 

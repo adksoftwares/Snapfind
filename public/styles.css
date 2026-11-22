@@ -2199,3 +2199,14 @@ body.dash .storage-progress::-moz-progress-bar { background:#849a66; border-radi
   outline-offset:2px;
 }
 .guest-dl-pick:focus-within { outline:2px solid #718c51; outline-offset:2px; border-radius:5px; }
+
+
+/* Lightbox navigation affordances */
+.lightbox-nav-actions { display:flex; align-items:center; flex-wrap:wrap; gap:7px; }
+.lightbox-position { min-width:58px; text-align:center; font-size:12px; color:#68736b; font-variant-numeric:tabular-nums; }
+.lightbox-nav-actions button:disabled { opacity:.42; cursor:default; transform:none; }
+@media (max-width:540px) {
+  .lightbox-nav-actions { justify-content:flex-start; }
+  .lightbox-position { order:0; }
+  .lightbox-nav-actions #lbFav, .lightbox-nav-actions #lbSelect, .lightbox-nav-actions a { flex:1 1 auto; }
+}
