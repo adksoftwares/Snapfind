@@ -529,7 +529,10 @@ function createAuthRouter({ db, config, limiters }) {
           await auditLog(db, req, "auth.password_reset_email_sent", "user", user.id, user.email, user.id);
         } catch (mailErr) {
           // Never log reset tokens, links, request bodies, or provider response bodies.
-          console.error("[SnapFind] Password reset delivery failed:", String(mailErr?.message || "mail delivery error").slice(0, 180));
+          console.error("[SnapFind] Password reset delivery failed", {
+            requestId: req.requestId || "unknown",
+            errorName: String(mailErr?.name || "Error").slice(0, 80),
+          });
           await recordSecurityEvent(db, req, {
             userId: user.id, studioId: user.studio_id, email: user.email,
             eventType: "password.reset_delivery_failed", success: false, details: "provider_delivery_error",

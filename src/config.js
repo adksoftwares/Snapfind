@@ -36,10 +36,24 @@ function loadConfig(overrides = {}) {
   const rootDir = overrides.rootDir || path.resolve(__dirname, "..");
   const env = { ...process.env, ...(overrides.env || {}) };
   const isVercel = Boolean(env.VERCEL || env.VERCEL_ENV);
+  const isProduction = env.NODE_ENV === "production";
   const port = Number(overrides.port ?? env.PORT ?? 4100);
   const vercelHost = (env.VERCEL_PROJECT_PRODUCTION_URL || env.VERCEL_URL || "").trim();
   const fallbackBaseUrl = vercelHost ? `https://${vercelHost}` : `http://localhost:${port}`;
-  const baseUrl = (overrides.baseUrl || env.BASE_URL || fallbackBaseUrl).replace(/\/+$/, "");
+  const baseUrlInput = (overrides.baseUrl || env.BASE_URL || fallbackBaseUrl).trim();
+  let parsedBaseUrl;
+  try {
+    parsedBaseUrl = new URL(baseUrlInput);
+    if (!["http:", "https:"].includes(parsedBaseUrl.protocol) || parsedBaseUrl.username || parsedBaseUrl.password || parsedBaseUrl.search || parsedBaseUrl.hash) {
+      throw new Error("BASE_URL must be an HTTP(S) URL without credentials, query, or fragment.");
+    }
+    if (isProduction && parsedBaseUrl.protocol !== "https:") {
+      throw new Error("BASE_URL must use HTTPS in production.");
+    }
+  } catch (err) {
+    throw new Error(err.message || "BASE_URL must be a valid HTTP(S) URL.");
+  }
+  const baseUrl = parsedBaseUrl.toString().replace(/\/+$/, "");
 
   const defaultUploadDir = isVercel
     ? path.join(os.tmpdir(), "snapfind-uploads")
@@ -95,6 +109,15 @@ function loadConfig(overrides = {}) {
     10
   );
   const sessionSecret = overrides.sessionSecret || resolveSessionSecret(env);
+  const rawFaceDescriptorEncryptionKey = String(env.FACE_DESCRIPTOR_ENCRYPTION_KEY || "").trim();
+  if (isProduction && rawFaceDescriptorEncryptionKey.length < 32) {
+    throw new Error("FACE_DESCRIPTOR_ENCRYPTION_KEY must be set to a stable secret of at least 32 characters in production.");
+  }
+  // Derive a fixed-size AES key. A dedicated key is strongly recommended in development
+  // and mandatory in production; the fallback keeps local development functional.
+  const faceDescriptorEncryptionKey = crypto.createHash("sha256")
+    .update(rawFaceDescriptorEncryptionKey || sessionSecret)
+    .digest();
   const mediaSigningSecret =
     (overrides.mediaSigningSecret || env.MEDIA_SIGNING_SECRET || "").trim() ||
     crypto.createHmac("sha256", sessionSecret).update("snapfind-media-signing").digest("hex");
@@ -111,7 +134,6 @@ function loadConfig(overrides = {}) {
   const allowMultipleSuperAdmins = Boolean(
     overrides.allowMultipleSuperAdmins ?? env.ALLOW_MULTIPLE_SUPER_ADMINS === "true"
   );
-  const isProduction = env.NODE_ENV === "production";
   const resetEmailProvider = String(env.RESET_EMAIL_PROVIDER || "").trim().toLowerCase();
   const resetEmailConfigured = resetEmailProvider === "resend" && Boolean((env.RESEND_API_KEY || "").trim()) && Boolean((env.RESET_EMAIL_FROM || "").trim());
   const resetEmailProviderConfig = {
@@ -128,7 +150,8 @@ function loadConfig(overrides = {}) {
   }
   const secureCookies =
     env.FORCE_HTTPS_COOKIES === "true" ||
-    ((isProduction || isVercel) && baseUrl.startsWith("https://"));
+    isProduction ||
+    (isVercel && baseUrl.startsWith("https://"));
 
   return {
     rootDir,
@@ -150,6 +173,7 @@ function loadConfig(overrides = {}) {
     maxStorageMbPerUser,
     maxStorageBytesPerUser: overrides.maxStorageBytesPerUser ?? maxStorageMbPerUser * 1024 * 1024,
     sessionSecret,
+    faceDescriptorEncryptionKey,
     mediaSigningSecret,
     mediaTokenTtlSeconds,
     registrationInviteCode,
@@ -160,15 +184,9 @@ function loadConfig(overrides = {}) {
   };
 }
 
-function getPublicBaseUrl(req, config) {
-  const host = req?.get?.("x-forwarded-host") || req?.get?.("host");
-  if (host) {
-    const proto =
-      String(req.get?.("x-forwarded-proto") || req.protocol || "http")
-        .split(",")[0]
-        .trim() || "http";
-    return `${proto}://${host}`.replace(/\/+$/, "");
-  }
+function getPublicBaseUrl(_req, config) {
+  // Use the configured canonical origin; request Host/Forwarded headers are untrusted
+  // and must not be used to construct share links or QR destinations.
   return config.baseUrl;
 }
 
