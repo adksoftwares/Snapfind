@@ -91,7 +91,7 @@ function updateFilterCounts() {
   } else {
     $("#aiFilterTab").classList.add("hidden");
   }
-  document.querySelectorAll("[data-filter]").forEach((btn) => {
+document.querySelectorAll("[data-filter]").forEach((btn) => {
     const isActive = btn.dataset.filter === activeFilter;
     btn.classList.toggle("active", isActive);
     btn.setAttribute("aria-pressed", String(isActive));
@@ -581,8 +581,17 @@ $("#guestName").oninput = (e) => localStorage.setItem("snapfind_guest_name", e.t
 $("#guestEmail").oninput = (e) => localStorage.setItem("snapfind_guest_email", e.target.value);
 
 $("#gallerySearch").oninput = () => {
+  $("#gallerySearchClear").classList.toggle("hidden", !$("#gallerySearch").value);
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => loadGallery(1), 250);
+};
+
+$("#gallerySearchClear").onclick = () => {
+  $("#gallerySearch").value = "";
+  $("#gallerySearchClear").classList.add("hidden");
+  clearTimeout(searchTimer);
+  loadGallery(1);
+  $("#gallerySearch").focus();
 };
 
 document.querySelectorAll("[data-filter]").forEach((btn) => {

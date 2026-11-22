@@ -35,7 +35,10 @@
       <div class="gallery-tools">
         <input id="guestName" aria-label="Your name" placeholder="Your name (optional)">
         <input id="guestEmail" aria-label="Email for requests" type="email" placeholder="Email for requests (optional)">
-        <input id="gallerySearch" aria-label="Search captions or filenames" placeholder="Search captions or filenames…">
+        <div class="gallery-search-field">
+          <input id="gallerySearch" aria-label="Search captions or filenames" placeholder="Search captions or filenames…" autocomplete="off">
+          <button class="gallery-search-clear hidden" id="gallerySearchClear" type="button" aria-label="Clear gallery search" title="Clear search">×</button>
+        </div>
       </div>
 
       <div class="gallery-filters">
