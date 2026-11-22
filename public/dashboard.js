@@ -4,6 +4,8 @@ let csrfToken = null;
 let currentUser = null;
 let currentEventId = null;
 let events = [];
+let eventLibraryFilter = "all";
+let eventLibraryQuery = "";
 let indexingAbort = false;
 
 function esc(value = "") {
@@ -325,6 +327,100 @@ $("#staffForm").onsubmit = async (e) => {
   }
 };
 
+function renderDashboardEvents() {
+  const query = eventLibraryQuery.trim().toLowerCase();
+  const filtered = events.filter((event) => {
+    const status = String(event.status || "").toLowerCase();
+    const matchesStatus = eventLibraryFilter === "all" || status === eventLibraryFilter;
+    const searchable = [event.title, event.event_date, event.venue, event.access_code, event.status]
+      .filter(Boolean).join(" ").toLowerCase();
+    return matchesStatus && (!query || searchable.includes(query));
+  });
+
+  const counts = {
+    all: events.length,
+    active: events.filter((e) => String(e.status || "").toLowerCase() === "active").length,
+    paused: events.filter((e) => String(e.status || "").toLowerCase() === "paused").length,
+    archived: events.filter((e) => String(e.status || "").toLowerCase() === "archived").length,
+  };
+  Object.entries(counts).forEach(([key, value]) => {
+    const el = $(`#eventCount${key.charAt(0).toUpperCase()}${key.slice(1)}`);
+    if (el) el.textContent = String(value);
+  });
+
+  document.querySelectorAll("[data-event-filter]").forEach((button) => {
+    const isActive = button.dataset.eventFilter === eventLibraryFilter;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+
+  const summary = $("#eventLibrarySummary");
+  if (summary) {
+    summary.textContent = query || eventLibraryFilter !== "all"
+      ? `Showing ${filtered.length} of ${events.length} event(s)`
+      : `${events.length} event(s) in your workspace`;
+  }
+
+  if (!events.length) {
+    $("#eventList").innerHTML = '<div class="empty event-library-empty"><h3>Your event library is ready</h3><p>Create your first event to start uploading photos and sharing a guest gallery.</p><button class="btn" type="button" data-empty-create-event>Create your first event</button></div>';
+    const createButton = $("[data-empty-create-event]");
+    if (createButton) createButton.onclick = () => $("#newEvent").click();
+    return;
+  }
+
+  if (!filtered.length) {
+    $("#eventList").innerHTML = '<div class="empty event-library-empty"><h3>No events match this view</h3><p>Try another status or clear your search.</p><button class="btn ghost" type="button" data-reset-event-library>Clear filters</button></div>';
+    const resetButton = $("[data-reset-event-library]");
+    if (resetButton) resetButton.onclick = () => {
+      eventLibraryFilter = "all";
+      eventLibraryQuery = "";
+      $("#eventLibrarySearch").value = "";
+      renderDashboardEvents();
+      $("#eventLibrarySearch").focus();
+    };
+    return;
+  }
+
+  $("#eventList").innerHTML = filtered.map((e) => `
+    <article class="event-card">
+      <div class="event-icon" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
+        </svg>
+      </div>
+      <div class="event-info">
+        <h3>
+          ${esc(e.title)}
+          <span class="badge ${esc(e.status)}">${esc(e.status)}</span>
+          ${e.has_pin ? '<span class="badge">PIN</span>' : ""}
+          ${e.is_public ? '<span class="badge">Public</span>' : ""}
+          ${e.ai_enabled ? '<span class="badge">AI</span>' : ""}
+        </h3>
+        <p>${esc(e.event_date || "Date not set")} · ${esc(e.venue || "Venue not set")}</p>
+        <small>${e.photos} ${e.photos === 1 ? "photo" : "photos"} · ${e.selections} ${e.selections === 1 ? "selection" : "selections"} · ${e.indexed_faces} ${e.indexed_faces === 1 ? "indexed face" : "indexed faces"} · Code ${esc(e.access_code)}</small>
+      </div>
+      <button class="btn ghost" data-manage="${esc(e.id)}" type="button">Manage →</button>
+    </article>
+  `).join("");
+
+  document.querySelectorAll("[data-manage]").forEach((btn) => {
+    btn.onclick = () => {
+      manageEvent(btn.dataset.manage).catch((err) => showToast(err.message));
+    };
+  });
+}
+
+$("#eventLibrarySearch").oninput = () => {
+  eventLibraryQuery = $("#eventLibrarySearch").value;
+  renderDashboardEvents();
+};
+document.querySelectorAll("[data-event-filter]").forEach((button) => {
+  button.onclick = () => {
+    eventLibraryFilter = button.dataset.eventFilter;
+    renderDashboardEvents();
+  };
+});
+
 async function loadDashboard() {
   const data = await api("/api/dashboard");
   events = data.events;
@@ -339,41 +435,8 @@ async function loadDashboard() {
   $("#statStorageLimit").textContent = `of ${Math.round(limit / (1024 * 1024))} MB limit`;
   $("#storageProgress").value = pct;
 
-  $("#eventList").innerHTML = events.length
-    ? events
-        .map(
-          (e) => `
-          <article class="event-card">
-            <div class="event-icon" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
-              </svg>
-            </div>
-            <div class="event-info">
-              <h3>
-                ${esc(e.title)}
-                <span class="badge ${esc(e.status)}">${esc(e.status)}</span>
-                ${e.has_pin ? '<span class="badge">PIN</span>' : ""}
-                ${e.is_public ? '<span class="badge">Public</span>' : ""}
-                ${e.ai_enabled ? '<span class="badge">AI</span>' : ""}
-              </h3>
-              <p>${esc(e.event_date || "Date not set")} · ${esc(e.venue || "Venue not set")}</p>
-              <small>${e.photos} ${e.photos === 1 ? "photo" : "photos"} · ${e.selections} ${e.selections === 1 ? "selection" : "selections"} · ${e.indexed_faces} ${e.indexed_faces === 1 ? "indexed face" : "indexed faces"} · Code ${esc(e.access_code)}</small>
-            </div>
-            <button class="btn ghost" data-manage="${esc(e.id)}" type="button">Manage →</button>
-          </article>
-        `
-        )
-        .join("")
-    : '<div class="empty">No events yet. Create your first event to get started.</div>';
+  renderDashboardEvents();
 
-  document.querySelectorAll("[data-manage]").forEach((btn) => {
-    btn.onclick = () => {
-      manageEvent(btn.dataset.manage).catch((err) => {
-        showToast(err.message);
-      });
-    };
-  });
 }
 
 async function manageEvent(eventId) {

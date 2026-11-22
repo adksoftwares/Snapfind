@@ -68,6 +68,19 @@
           <h2 id="eventsHeading">Recent events</h2>
         </div>
       </div>
+      <div class="event-library-tools">
+        <label class="event-library-search" for="eventLibrarySearch">
+          <span class="sr-only">Search your events</span>
+          <input id="eventLibrarySearch" type="search" placeholder="Search events, venue or code…" autocomplete="off">
+        </label>
+        <div class="event-library-filters" role="group" aria-label="Filter events by status">
+          <button class="tab-btn active" type="button" data-event-filter="all" aria-pressed="true">All <span id="eventCountAll">0</span></button>
+          <button class="tab-btn" type="button" data-event-filter="active" aria-pressed="false">Active <span id="eventCountActive">0</span></button>
+          <button class="tab-btn" type="button" data-event-filter="paused" aria-pressed="false">Paused <span id="eventCountPaused">0</span></button>
+          <button class="tab-btn" type="button" data-event-filter="archived" aria-pressed="false">Archived <span id="eventCountArchived">0</span></button>
+        </div>
+      </div>
+      <p id="eventLibrarySummary" class="event-library-summary muted" aria-live="polite"></p>
       <div id="eventList" class="event-list" aria-live="polite"></div>
     </section>
 
