@@ -31,7 +31,8 @@ let currentPage = 1;
 let totalPages = 1;
 let searchTimer = null;
 let aiCancelled = false;
-let socket = null;\nlet lightboxPhotoId = null;
+let socket = null;
+let lightboxPhotoId = null;
 
 function esc(value = "") {
   return String(value).replace(/[&<>"']/g, (c) => ({
@@ -91,7 +92,9 @@ function updateFilterCounts() {
     $("#aiFilterTab").classList.add("hidden");
   }
   document.querySelectorAll("[data-filter]").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.filter === activeFilter);
+    const isActive = btn.dataset.filter === activeFilter;
+    btn.classList.toggle("active", isActive);
+    btn.setAttribute("aria-pressed", String(isActive));
   });
 }
 
@@ -321,7 +324,13 @@ function renderPhotos() {
   });
 
   document.querySelectorAll("[data-open-lightbox]").forEach((img) => {
-    img.onclick = () => openLightbox(img.dataset.openLightbox);\n    img.onkeydown = (event) => {\n      if (event.key === "Enter" || event.key === " ") {\n        event.preventDefault();\n        openLightbox(img.dataset.openLightbox);\n      }\n    };
+    img.onclick = () => openLightbox(img.dataset.openLightbox);
+    img.onkeydown = (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openLightbox(img.dataset.openLightbox);
+      }
+    };
   });
 
   document.querySelectorAll("[data-fav-toggle]").forEach((btn) => {
