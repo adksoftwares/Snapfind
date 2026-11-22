@@ -22,7 +22,7 @@
     </div>
   </aside>
 
-  <main class="dash-main">
+  <main class="dash-main" id="studioWorkspace">
     <header class="dash-head">
       <div>
         <p class="eyebrow" id="workspaceRoleLabel">STUDIO WORKSPACE</p>
@@ -40,7 +40,7 @@
       <button id="liveToastClose" class="btn sm ghost" type="button">Dismiss</button>
     </div>
 
-    <div class="stat-grid">
+    <section class="stat-grid" aria-label="Studio overview">
       <div class="stat">
         <span>Total events</span>
         <b id="statEvents">0</b>
@@ -59,16 +59,16 @@
         <small id="statStorageLimit">of 500 MB limit</small>
         <progress id="storageProgress" class="storage-progress" max="100" value="0"></progress>
       </div>
-    </div>
+    </section>
 
-    <section id="events" class="dash-section">
+    <section id="events" class="dash-section" aria-labelledby="eventsHeading">
       <div class="section-head">
         <div>
           <p class="eyebrow">YOUR PORTFOLIO</p>
-          <h2>Recent events</h2>
+          <h2 id="eventsHeading">Recent events</h2>
         </div>
       </div>
-      <div id="eventList" class="event-list"></div>
+      <div id="eventList" class="event-list" aria-live="polite"></div>
     </section>
 
     <section id="staff" class="dash-section hidden">
