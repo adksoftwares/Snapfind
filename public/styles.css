@@ -2234,3 +2234,12 @@ body.dash .storage-progress::-moz-progress-bar { background:#849a66; border-radi
 .event-library-empty h3, .event-library-empty p { margin:0; }
 .event-library-empty p { max-width:520px; line-height:1.6; }
 @media (max-width:680px) { .event-library-tools { display:grid; grid-template-columns:1fr; } .event-library-filters { width:100%; } .event-library-filters .tab-btn { flex:1; justify-content:center; } }
+
+/* Studio photo upload dropzone */
+.photo-dropzone { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; margin:16px 0 6px; padding:24px 18px; border:1.5px dashed #bdc9bf; border-radius:12px; background:#fafbf8; color:var(--ink); text-align:center; cursor:pointer; outline:none; transition:background .16s ease, border-color .16s ease, box-shadow .16s ease; }
+.photo-dropzone:hover, .photo-dropzone:focus-visible { border-color:#6f9e31; background:#f1f5eb; box-shadow:0 0 0 3px #6f9e311c; }
+.photo-dropzone.is-dragover { border-color:#6f9e31; border-style:solid; background:#eaf2e3; box-shadow:0 0 0 4px #6f9e3124; }
+.photo-dropzone-icon { display:grid; place-items:center; width:38px; height:38px; border-radius:10px; background:#edf4e5; color:var(--accent); font-size:23px; font-weight:700; }
+.photo-dropzone strong { font-size:14px; }
+.photo-dropzone span:not(.photo-dropzone-icon) { font-size:12px; color:var(--muted); }
+@media (prefers-reduced-motion: reduce) { .photo-dropzone { transition:none; } }
