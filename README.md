@@ -25,8 +25,9 @@ A self-hostable event photography delivery platform with multi-tenant studio iso
 ## Production deployment requirements
 
 - On Vercel production, configure `DATABASE_URL` to a durable managed PostgreSQL database and configure Vercel Blob credentials. The application now fails startup if either is missing rather than silently using ephemeral SQLite/filesystem storage.
-- Uploads are batched by the browser (at most 3 files and roughly 3 MB per batch). The server defaults to 3 files per request and rejects requests with a known `Content-Length` above `MAX_UPLOAD_BATCH_MB`; file-count and per-file limits also apply. Defaults are 4 MB on Vercel and 60 MB for local/self-hosted environments.
-- Keep `SESSION_SECRET` strong and unique, and configure `BASE_URL` to the canonical HTTPS origin.
+- Uploads are batched by the browser (at most 3 files and roughly 3 MB per batch). The server defaults to 3 files per request, rejects requests with a known `Content-Length` above `MAX_UPLOAD_BATCH_MB`, and also enforces the aggregate file-byte limit after parsing multipart requests (including chunked requests); file-count, per-file, and multipart-field limits also apply. Defaults are 4 MB on Vercel and 60 MB for local/self-hosted environments.
+- Keep `SESSION_SECRET` strong and unique, and configure `BASE_URL` to the canonical HTTPS origin. Production startup enforces HTTPS and secure session cookies; QR/share links use only this configured canonical URL (not incoming Host headers).
+- Set `FACE_DESCRIPTOR_ENCRYPTION_KEY` to a stable, separate random secret (at least 32 characters) in production. Face descriptors are AES-256-GCM encrypted before database storage; existing plaintext descriptor rows are migrated at startup. Preserve this key in encrypted backups—losing it makes stored descriptors unreadable.
 - Protected galleries are intentionally excluded from the public event directory; share their access code/QR directly with guests.
 - AI face discovery uses a conservative server-controlled matching threshold. Match scores are approximate similarity indicators, not verified identity or calibrated probabilities.
 
@@ -56,6 +57,7 @@ A self-hostable event photography delivery platform with multi-tenant studio iso
 ### Face-discovery data lifecycle
 - The uploaded guest selfie is processed in the browser; the image is not sent to SnapFind. When matching is requested, descriptor vectors are sent securely to the server for comparison and are not persisted as query data.
 - Match results (photo IDs) are held in the server-side session until the guest clears the scan or the session expires.
+- Face descriptors are encrypted with AES-256-GCM at rest. A startup migration converts valid legacy plaintext descriptor rows; malformed legacy vectors are deleted because they cannot be used for matching. The encryption key is independent from the session and media signing keys.
 - Event photo descriptors are stored while AI face discovery is enabled. Disable AI face discovery or clear indexing to delete descriptors; photo deletion cascades to associated descriptors. Retain event photos and guest selections only for the studio's stated purpose and delete them when no longer needed.
 
 ## Run

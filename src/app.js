@@ -11,6 +11,7 @@ const { Server } = require("socket.io");
 
 const pkg = require("../package.json");
 const { loadConfig } = require("./config");
+const { migrateLegacyFaceDescriptors } = require("./biometric");
 const { openDatabase } = require("./db");
 const { DatabaseSessionStore } = require("./session-store");
 const {
@@ -40,6 +41,8 @@ function createApp(options = {}) {
     dbPath: config.dbPath,
     databaseUrl: config.databaseUrl,
   });
+  // Encrypt any historical plaintext biometric vectors before serving API routes.
+  const startupReady = db.ensureReady().then(() => migrateLegacyFaceDescriptors(db, config));
   const sessionStore = new DatabaseSessionStore(db);
   const eventStatusCache = createEventStatusCache(db);
   const limiters = createLimiters({ disableRateLimit: Boolean(options.disableRateLimit) });
@@ -83,7 +86,7 @@ function createApp(options = {}) {
   app.get("/healthz", async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     try {
-      await db.ensureReady();
+      await startupReady;
       await db.get("SELECT 1");
       return res.status(200).json({ status: "ok", checks: { database: "ok" } });
     } catch (err) {
@@ -98,7 +101,7 @@ function createApp(options = {}) {
   // Ensure Postgres schema/migrations or SQLite DB ready before serving any route
   app.use(async (req, res, next) => {
     try {
-      await db.ensureReady();
+      await startupReady;
       next();
     } catch (err) {
       next(err);

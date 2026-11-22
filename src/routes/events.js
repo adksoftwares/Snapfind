@@ -25,6 +25,7 @@ const {
   deleteEventMediaDir,
 } = require("../media");
 const { revokeUserSessions } = require("../security");
+const { encryptFaceDescriptor } = require("../biometric");
 
 const VALID_STATUSES = new Set(["active", "paused", "archived"]);
 
@@ -134,6 +135,9 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
     limits: {
       fileSize: config.maxFileSizeBytes,
       files: config.maxFilesPerUpload,
+      fieldSize: 1024 * 1024,
+      fields: 8,
+      parts: config.maxFilesPerUpload + 8,
     },
   });
 
@@ -480,7 +484,18 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
         const currentUsed = req.studioStorageUsed ?? 0;
         const limitBytes = req.studioStorageLimit ?? config.maxStorageBytesPerUser;
         const incomingRawBytes = files.reduce((sum, f) => sum + (f.size || 0), 0);
+        const incomingFieldBytes = Object.entries(req.body || {}).reduce((sum, [key, value]) => {
+          const values = Array.isArray(value) ? value : [value];
+          return sum + Buffer.byteLength(key) + values.reduce((bytes, field) => bytes + Buffer.byteLength(String(field ?? "")), 0);
+        }, 0);
 
+        // Content-Length is optional (chunked multipart requests may omit it), so
+        // enforce the configured aggregate limit after Multer has measured files.
+        if (incomingRawBytes + incomingFieldBytes > config.maxUploadBatchBytes) {
+          return res.status(413).json({
+            error: `Upload batch exceeds ${Math.round(config.maxUploadBatchBytes / (1024 * 1024))} MB limit`,
+          });
+        }
         if (currentUsed + incomingRawBytes > limitBytes) {
           return res.status(413).json({
             error: `Storage quota exceeded (${Math.round(limitBytes / (1024 * 1024))} MB limit per studio)`,
@@ -603,7 +618,7 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
                 uuid(),
                 p.id,
                 req.event.id,
-                JSON.stringify(desc)
+                encryptFaceDescriptor(config, desc)
               );
               facesIndexedTotal += 1;
             }
@@ -929,7 +944,7 @@ function createEventsRouter({ db, config, io, eventStatusCache }) {
                 uuid(),
                 entry.photo_id,
                 req.event.id,
-                JSON.stringify(desc)
+                encryptFaceDescriptor(config, desc)
               );
               savedDescriptors += 1;
             }

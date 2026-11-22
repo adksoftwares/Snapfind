@@ -18,6 +18,7 @@ const {
   encodeContentDisposition,
 } = require("../media");
 const { mapPhotoUrls } = require("./events");
+const { decryptFaceDescriptor } = require("../biometric");
 
 async function isEventUnlocked(db, req, event) {
   if (!event.pin_hash) return true;
@@ -367,7 +368,7 @@ function createGalleryRouter({ db, config, io, limiters }) {
       const bestByPhoto = new Map();
       for (const r of rows) {
         try {
-          const stored = JSON.parse(r.descriptor_json);
+          const stored = decryptFaceDescriptor(config, r.descriptor_json);
           if (!Array.isArray(stored) || stored.length !== 128 || !stored.every((n) => typeof n === "number" && Number.isFinite(n) && n >= -2 && n <= 2)) continue;
           let dist = 1;
           for (const q of queryDescriptors) {
