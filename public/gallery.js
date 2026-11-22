@@ -392,7 +392,7 @@ function openLightbox(photoId) {
         <button class="btn sm ghost" id="lbFav" type="button">${isFav ? "♥ Favourited" : "♡ Favourite"}</button>
         <button class="btn sm ghost" id="lbSelect" type="button" ${isSel ? "disabled" : ""}>${isSel ? "✓ Selected" : "Request / Select"}</button>
         <a class="btn sm" href="${esc(downloadUrl(photo.url))}" download="${esc(photo.original_name)}">↓ Download original</a>
-      </div>/div>
+      </div>
     </div>
   `;
 
