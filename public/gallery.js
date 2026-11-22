@@ -31,7 +31,7 @@ let currentPage = 1;
 let totalPages = 1;
 let searchTimer = null;
 let aiCancelled = false;
-let socket = null;
+let socket = null;\nlet lightboxPhotoId = null;
 
 function esc(value = "") {
   return String(value).replace(/[&<>"']/g, (c) => ({
@@ -393,7 +393,7 @@ function openLightbox(photoId) {
     </div>
   `;
 
-  $("#lbFav").onclick = async () => {
+  const lbList = getVisiblePhotos();\n  const lbIndex = lbList.findIndex((p) => p.id === photoId);\n  $("#lbPosition").textContent = lbIndex >= 0 ? `${lbIndex + 1} of ${lbList.length}` : "";\n  $("#lbPrev").disabled = lbIndex <= 0;\n  $("#lbNext").disabled = lbIndex < 0 || lbIndex >= lbList.length - 1;\n  $("#lbPrev").onclick = () => moveLightbox(-1);\n  $("#lbNext").onclick = () => moveLightbox(1);\n\n  $("#lbFav").onclick = async () => {
     await toggleFavourite(photo.id);
     openLightbox(photo.id);
   };
@@ -406,6 +406,24 @@ function openLightbox(photoId) {
     $("#lightboxDialog").showModal();
   }
 }
+
+function moveLightbox(direction) {
+  const list = getVisiblePhotos();
+  const index = list.findIndex((p) => p.id === lightboxPhotoId);
+  const next = index + direction;
+  if (next >= 0 && next < list.length) openLightbox(list[next].id);
+}
+
+document.addEventListener("keydown", (event) => {
+  if (!$("#lightboxDialog")?.open) return;
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    moveLightbox(-1);
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault();
+    moveLightbox(1);
+  }
+});
 
 $("#lightboxClose").onclick = () => $("#lightboxDialog").close();
 
