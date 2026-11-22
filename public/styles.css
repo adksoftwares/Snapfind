@@ -2114,7 +2114,7 @@ dialog form > .btn.full { margin-top:12px; }
 @media (max-width:900px) {
   .top nav { flex-wrap:wrap; justify-content:flex-end; }
   .gallery-tools { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .gallery-tools #gallerySearch { grid-column:1/-1; }
+  .gallery-tools .gallery-search-field { grid-column:1/-1; }
 }
 @media (max-width:540px) {
   html { scroll-padding-top:72px; }
@@ -2122,7 +2122,7 @@ dialog form > .btn.full { margin-top:12px; }
   .top nav a:not(.btn) { padding:6px 2px; }
   .top nav .btn { flex:1 1 auto; }
   .gallery-tools { grid-template-columns:1fr; }
-  .gallery-tools #gallerySearch { grid-column:auto; }
+  .gallery-tools .gallery-search-field { grid-column:auto; }
   .gallery-filters { display:flex; width:100%; }
   .gallery-filters .tab-btn { flex:1 1 auto; min-width:0; }
   .bulk-photo-bar { align-items:flex-start; }
