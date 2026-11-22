@@ -552,6 +552,11 @@ async function manageEvent(eventId) {
         : ""
     }
 
+    ${data.photos.length ? `<div class="manage-photo-tools">
+      <label for="managePhotoSearch"><span class="sr-only">Search event photos</span><input id="managePhotoSearch" type="search" placeholder="Search photos by filename or caption…" autocomplete="off"></label>
+      <span id="managePhotoSearchCount" class="muted">${data.photos.length} photos</span>
+    </div>` : ""}
+
     <div class="manage-photo-grid">
       ${
         data.photos.length
@@ -582,6 +587,35 @@ async function manageEvent(eventId) {
       }
     </div>
   `;
+
+  const managePhotoSearch = $("#managePhotoSearch");
+  if (managePhotoSearch) {
+    const photoCards = [...document.querySelectorAll(".manage-photo-card")];
+    const count = $("#managePhotoSearchCount");
+    const applyPhotoSearch = () => {
+      const query = managePhotoSearch.value.trim().toLocaleLowerCase();
+      let visible = 0;
+      photoCards.forEach((card) => {
+        const caption = card.querySelector("[data-caption-input]")?.value || "";
+        const searchable = `${card.querySelector("small")?.textContent || ""} ${caption}`.toLocaleLowerCase();
+        const matches = !query || searchable.includes(query);
+        card.hidden = !matches;
+        if (matches) visible++;
+      });
+      count.textContent = query ? `${visible} of ${photoCards.length} photos` : `${photoCards.length} photos`;
+      let empty = $("#managePhotoNoResults");
+      if (!visible && photoCards.length) {
+        if (!empty) {
+          empty = document.createElement("p");
+          empty.id = "managePhotoNoResults";
+          empty.className = "empty-card manage-photo-no-results";
+          empty.textContent = "No photos match your search. Try another filename or caption.";
+          $(".manage-photo-grid").append(empty);
+        }
+      } else if (empty) empty.remove();
+    };
+    managePhotoSearch.addEventListener("input", applyPhotoSearch);
+  }
 
   if (!$("#manageDialog").open) {
     $("#manageDialog").showModal();
