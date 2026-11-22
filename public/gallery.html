@@ -47,7 +47,8 @@
       <p id="galleryError" class="error" role="alert" aria-live="assertive"></p>
       <div id="guestBulkBar" class="bulk-photo-bar guest-bulk-bar hidden">
         <label class="inline"><input type="checkbox" id="guestSelectAll"> Select all (<span id="guestShownCount">0</span>)</label>
-        <span id="guestDownloadCount" class="muted">0 selected</span>
+        <span id="guestDownloadCount" class="muted" aria-live="polite" aria-atomic="true">0 selected</span>
+        <span id="guestBulkStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></span>
         <div class="bulk-photo-actions">
           <button class="btn sm ghost hidden" id="guestClearPickBtn" type="button">Clear</button>
           <button class="btn sm hidden" id="guestDownloadSelectedBtn" type="button">↓ Download selected (0)</button>
