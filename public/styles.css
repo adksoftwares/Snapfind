@@ -2235,7 +2235,8 @@ body.dash .storage-progress::-moz-progress-bar { background:#849a66; border-radi
 
 /* Studio event library filtering and search */
 .event-library-tools { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:0 0 8px; }
-.event-library-search { flex:1 1 240px; min-width:0; }
+.event-library-search { flex:1 1 240px; min-width:0; display:grid; gap:4px; }
+.event-library-search-hint { color:var(--muted); font-size:11px; padding-inline:2px; }
 .event-library-search input { width:100%; min-height:44px; border:1px solid #deded5; border-radius:8px; background:#fffefa; padding:10px 12px; }
 .event-library-filters { display:flex; gap:6px; flex-wrap:wrap; }
 .event-library-filters .tab-btn { display:inline-flex; align-items:center; gap:7px; }
