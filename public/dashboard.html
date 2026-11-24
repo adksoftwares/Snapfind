@@ -90,10 +90,10 @@
       <p class="muted">Create studio staff accounts scoped strictly to your studio with least-privilege permissions.</p>
       <form id="staffForm" class="panel-box">
         <div class="form-grid">
-          <label for="stName">Staff name<input id="stName" name="name" required></label>
-          <label for="stEmail">Email<input id="stEmail" name="email" type="email" required></label>
+          <label for="stName">Staff name<input id="stName" name="name" placeholder="e.g. Marcus Cole" required></label>
+          <label for="stEmail">Email<input id="stEmail" name="email" type="email" placeholder="team@studio.com" required></label>
         </div>
-        <label for="stPw">Temporary password (6+ chars)<input id="stPw" name="password" type="password" minlength="6" required></label>
+        <label for="stPw">Temporary password (6+ chars)<input id="stPw" name="password" type="password" minlength="6" placeholder="Temporary password (6+ chars)" required></label>
         <div class="perm-grid">
           <label class="inline"><input type="checkbox" name="perm" value="events:read" checked> events:read</label>
           <label class="inline"><input type="checkbox" name="perm" value="events:write"> events:write</label>
@@ -112,9 +112,9 @@
       <p class="eyebrow">ACCOUNT &amp; SECURITY</p>
       <h2>Studio profile</h2>
       <form id="profileForm" class="profile-form">
-        <label for="profName">Name<input id="profName" name="name" required></label>
-        <label for="profPhone">Phone<input id="profPhone" name="phone"></label>
-        <label for="profStudio">Studio name<input id="profStudio" name="studio"></label>
+        <label for="profName">Name<input id="profName" name="name" placeholder="Your full name" required></label>
+        <label for="profPhone">Phone<input id="profPhone" name="phone" placeholder="+94 77 123 4567"></label>
+        <label for="profStudio">Studio name<input id="profStudio" name="studio" placeholder="Your studio name"></label>
         <button class="btn" type="submit">Save profile</button>
       </form>
       <p id="profileMsg" class="muted"></p>
@@ -160,9 +160,9 @@
         <label for="evDesc">Short note<input id="evDesc" name="description" placeholder="Optional description"></label>
       </div>
       <label class="inline"><input name="is_public" type="checkbox"> Publicly listed on landing page</label>
-      <label class="inline"><input name="ai_enabled" type="checkbox"> Enable opt-in AI face discovery</label>
+      <label class="inline"><input id="evAiEnabled" name="ai_enabled" type="checkbox"> Enable opt-in AI face discovery</label>
       <p class="muted">Face discovery is optional. Guests choose whether to use selfie matching; their selfie is analyzed on their device, and a face descriptor is sent to this service to find event photos. Event face descriptors remain stored while AI discovery is enabled and are deleted when you turn it off.</p>
-      <label class="inline"><input name="selfie_only" type="checkbox" checked> Private selfie-only delivery (hide other guests' photos until selfie scan)</label>
+      <label class="inline"><input id="evSelfieOnly" name="selfie_only" type="checkbox" disabled> Private selfie-only delivery (hide other guests' photos until selfie scan)</label>
       <button class="btn full" type="submit">Create event</button>
       <p id="eventError" class="error"></p>
     </form>
@@ -187,6 +187,6 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="/vendor/face-api/face-api.js"></script>
   <script src="/face-engine.js?v=3"></script>
-  <script src="/dashboard.js?v=8"></script>
+  <script src="/dashboard.js?v=11"></script>
 </body>
 </html>

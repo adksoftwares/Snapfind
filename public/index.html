@@ -34,7 +34,7 @@
           <a class="textlink" href="#workflow">Explore the workflow</a>
         </div>
         <form id="codeJumpForm" class="code-jump">
-          <input id="codeJumpInput" aria-label="Event access code" placeholder="Have an event code? Enter it…" maxlength="20" required>
+          <input id="codeJumpInput" aria-label="Event access code" placeholder="Enter event code…" maxlength="20" required>
           <button class="btn ghost" type="submit">Open gallery</button>
         </form>
         <div class="trust">
@@ -169,11 +169,11 @@
       <div id="registerRow" class="form-grid hidden">
         <div id="nameField" class="field">
           <label for="authName">Full name</label>
-          <input id="authName" name="name" autocomplete="name">
+          <input id="authName" name="name" placeholder="Your full name" autocomplete="name">
         </div>
         <div id="studioField" class="field">
           <label for="authStudio">Studio name (optional)</label>
-          <input id="authStudio" name="studio" autocomplete="organization">
+          <input id="authStudio" name="studio" placeholder="e.g. Horizon Studio" autocomplete="organization">
         </div>
       </div>
       <div id="inviteField" class="field hidden">
@@ -182,11 +182,11 @@
       </div>
       <div class="field" id="emailField">
         <label for="authEmail">Email address</label>
-        <input id="authEmail" name="email" type="email" required autocomplete="email">
+        <input id="authEmail" name="email" type="email" placeholder="you@studio.com" required autocomplete="email">
       </div>
       <div class="field" id="passwordField">
         <label for="authPassword">Password</label>
-        <input id="authPassword" name="password" type="password" minlength="6" required autocomplete="current-password">
+        <input id="authPassword" name="password" type="password" minlength="6" placeholder="At least 6 characters" required autocomplete="current-password">
       </div>
       <div class="field hidden" id="mfaField">
         <label for="authMfaCode">Authenticator or recovery code</label>

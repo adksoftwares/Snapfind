@@ -49,7 +49,7 @@
 
       <p id="galleryError" class="error" role="alert" aria-live="assertive"></p>
       <div id="guestBulkBar" class="bulk-photo-bar guest-bulk-bar hidden">
-        <label class="inline"><input type="checkbox" id="guestSelectAll"> Select all (<span id="guestShownCount">0</span>)</label>
+        <label class="inline"><input type="checkbox" id="guestSelectAll"> <span>Select all (<span id="guestShownCount">0</span>)</span></label>
         <span id="guestDownloadCount" class="muted" aria-live="polite" aria-atomic="true">0 selected</span>
         <span id="guestBulkStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></span>
         <div class="bulk-photo-actions">
@@ -69,9 +69,9 @@
 
       <section id="aiSection" class="ai-panel hidden">
         <div>
-          <p class="eyebrow">OPTIONAL FEATURE</p>
+          <p class="eyebrow" id="aiEyebrow">OPTIONAL FEATURE</p>
           <h2>Find your photos with AI</h2>
-          <p>
+          <p id="aiDesc">
             Face discovery is optional. Your selfie image is analysed on this device and never uploaded.
             When matching is requested, face descriptors (not the selfie image) are sent securely to SnapFind
             for comparison with event-photo descriptors. Query descriptors are not stored. If no indexed
@@ -133,6 +133,6 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="/vendor/face-api/face-api.js"></script>
   <script src="/face-engine.js?v=3"></script>
-  <script src="/gallery.js?v=6"></script>
+  <script src="/gallery.js?v=7"></script>
 </body>
 </html>

@@ -1,4 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => [...document.querySelectorAll(selector)];
 
 let csrfToken = null;
 let currentUser = null;
@@ -83,7 +84,7 @@ async function init() {
     return;
   }
 
-  $("#welcomeName").textContent = me.name.split(" ")[0];
+  $("#welcomeName").textContent = String(me.name || "there").trim().split(/\s+/)[0];
   $("#sideName").textContent = me.email;
   $("#workspaceRoleLabel").textContent =
     me.role === "super_admin"
@@ -108,6 +109,21 @@ async function init() {
   }
   if (!hasPerm("events:write")) {
     $("#newEvent").classList.add("hidden");
+  }
+
+  $$(".side-nav a[href^='#']").forEach((link) => {
+    link.addEventListener("click", () => {
+      $$(".side-nav a").forEach((a) => a.classList.remove("active"));
+      link.classList.add("active");
+    });
+  });
+
+  if ($("#evAiEnabled") && $("#evSelfieOnly")) {
+    $("#evAiEnabled").addEventListener("change", () => {
+      const enabled = $("#evAiEnabled").checked;
+      $("#evSelfieOnly").disabled = !enabled;
+      if (!enabled) $("#evSelfieOnly").checked = false;
+    });
   }
 
   renderMfaState();
@@ -451,42 +467,44 @@ async function manageEvent(eventId) {
   const canAiIndex = hasPerm("ai:index");
 
   $("#manageContent").innerHTML = `
-    <button class="close" id="manageClose" type="button" aria-label="Close">×</button>
-    <p class="eyebrow">EVENT CONTROL</p>
-    <h2>${esc(e.title)} <span class="badge ${esc(e.status)}">${esc(e.status)}</span></h2>
-    <p class="muted">
-      Access code: <b>${esc(e.access_code)}</b>
-      · ${e.has_pin ? "PIN protected" : "No PIN"}
-      · ${e.is_public ? "Publicly listed" : "Private link"}
-      · AI Discovery: ${e.ai_enabled ? (e.selfie_only ? "Selfie-only delivery" : "Enabled (browse all)") : "Off"}
-    </p>
+    <div class="manage-sticky-head">
+      <button class="close" id="manageClose" type="button" aria-label="Close">×</button>
+      <p class="eyebrow">EVENT CONTROL</p>
+      <h2>${esc(e.title)} <span class="badge ${esc(e.status)}">${esc(e.status)}</span></h2>
+      <p class="muted">
+        Access code: <b>${esc(e.access_code)}</b>
+        · ${e.has_pin ? "PIN protected" : "No PIN"}
+        · ${e.is_public ? "Publicly listed" : "Private link"}
+        · AI Discovery: ${e.ai_enabled ? (e.selfie_only ? "Selfie-only delivery" : "Enabled (browse all)") : "Off"}
+      </p>
 
-    <div class="manage-actions">
-      <button class="btn" id="qrBtn" type="button">Generate QR</button>
-      ${
-        canUpload
-          ? `<label class="btn ghost upload-btn" for="photoUpload">
-              ＋ Upload photos
-              <input type="file" id="photoUpload" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>
-            </label>`
-          : ""
-      }
-      ${
-        canSelections
-          ? `<button class="btn ghost" id="selectionBtn" type="button">Selections (${data.stats.selections})</button>`
-          : ""
-      }
-      ${
-        canWrite
-          ? `<button class="btn ghost" id="editToggleBtn" type="button">Event settings</button>`
-          : ""
-      }
-      ${
-        e.ai_enabled && canAiIndex
-          ? `<button class="btn ghost" id="indexFacesBtn" type="button">Index faces (${data.stats.indexed_faces})</button>`
-          : ""
-      }
-      <a class="btn ghost" target="_blank" href="/gallery/${encodeURIComponent(e.access_code)}">Open gallery ↗</a>
+      <div class="manage-actions">
+        <button class="btn ghost" id="qrBtn" type="button">Generate QR</button>
+        ${
+          canUpload
+            ? `<label class="btn ghost upload-btn" for="photoUpload">
+                ＋ Upload photos
+                <input type="file" id="photoUpload" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>
+              </label>`
+            : ""
+        }
+        ${
+          canSelections
+            ? `<button class="btn ghost" id="selectionBtn" type="button">Selections (${data.stats.selections})</button>`
+            : ""
+        }
+        ${
+          canWrite
+            ? `<button class="btn ghost" id="editToggleBtn" type="button">Event settings</button>`
+            : ""
+        }
+        ${
+          e.ai_enabled && canAiIndex
+            ? `<button class="btn ghost" id="indexFacesBtn" type="button">Index faces (${data.stats.indexed_faces})</button>`
+            : ""
+        }
+        <a class="btn ghost" target="_blank" href="/gallery/${encodeURIComponent(e.access_code)}">Open gallery ↗</a>
+      </div>
     </div>
 
     ${
@@ -528,7 +546,7 @@ async function manageEvent(eventId) {
           ${e.has_pin ? '<label class="inline"><input type="checkbox" name="clear_pin"> Remove existing PIN</label>' : ""}
           <label class="inline"><input type="checkbox" name="is_public" ${e.is_public ? "checked" : ""}> Publicly listed event</label>
           <label class="inline"><input type="checkbox" name="ai_enabled" ${e.ai_enabled ? "checked" : ""}> Enable opt-in AI face discovery</label>
-          <label class="inline"><input type="checkbox" name="selfie_only" ${e.selfie_only ? "checked" : ""}> Private selfie-only delivery (guests only see photos matching their selfie)</label>
+          <label class="inline"><input type="checkbox" name="selfie_only" ${e.selfie_only ? "checked" : ""} ${e.ai_enabled ? "" : "disabled"}> Private selfie-only delivery (guests only see photos matching their selfie)</label>
           <div class="manage-actions">
             <button class="btn" type="submit">Save changes</button>
             <button class="btn danger" id="deleteEventBtn" type="button">Delete event</button>
@@ -542,7 +560,7 @@ async function manageEvent(eventId) {
       canDeletePhoto && data.photos.length
         ? `
       <div class="bulk-photo-bar">
-        <label class="inline"><input type="checkbox" id="selectAllPhotos"> Select all (${data.photos.length})</label>
+        <label class="inline"><input type="checkbox" id="selectAllPhotos"> <span>Select all (${data.photos.length})</span></label>
         <span id="selectedPhotosCount" class="muted">0 selected</span>
         <div class="bulk-photo-actions">
           <button class="btn sm ghost hidden" id="clearSelectedPhotosBtn" type="button">Clear</button>
@@ -573,7 +591,10 @@ async function manageEvent(eventId) {
                     : ""
                 }
                 <img src="${esc(p.thumb_url)}" alt="${esc(p.original_name)}">
-                <small class="muted">${esc(p.original_name)} ${p.face_indexed ? `· ${p.face_count} faces` : ""}</small>
+                <div class="photo-card-meta">
+                  <span class="photo-card-name" title="${esc(p.original_name)}">${esc(p.original_name)}</span>
+                  <span class="photo-card-faces">${p.face_indexed ? `${p.face_count} faces` : "Not indexed"}</span>
+                </div>
                 <input type="text" value="${esc(p.caption || "")}" placeholder="Add caption…" data-caption-input="${esc(p.id)}" ${canWrite ? "" : "disabled"}>
                 <div class="row">
                   ${canWrite ? `<button class="btn sm ghost" data-save-caption="${esc(p.id)}" type="button">Save</button>` : ""}
@@ -597,7 +618,7 @@ async function manageEvent(eventId) {
       let visible = 0;
       photoCards.forEach((card) => {
         const caption = card.querySelector("[data-caption-input]")?.value || "";
-        const searchable = `${card.querySelector("small")?.textContent || ""} ${caption}`.toLocaleLowerCase();
+        const searchable = `${card.querySelector(".photo-card-name, small")?.textContent || ""} ${caption}`.toLocaleLowerCase();
         const matches = !query || searchable.includes(query);
         card.hidden = !matches;
         if (matches) visible++;
@@ -631,11 +652,22 @@ async function manageEvent(eventId) {
     $("#manageDialog").close();
   };
 
+  let activeManageTab = "";
+  function setActiveManageTab(tabId) {
+    activeManageTab = tabId;
+    $$(".manage-actions .btn").forEach((btn) => {
+      btn.classList.toggle("is-active-tab", Boolean(tabId) && btn.id === tabId);
+    });
+  }
+
   if ($("#editToggleBtn")) {
     $("#editToggleBtn").onclick = () => {
       const box = $("#editEventBox");
-      box.classList.toggle("hidden");
-      if (!box.classList.contains("hidden")) {
+      const opening = box.classList.contains("hidden");
+      $("#dynamicPanel").innerHTML = "";
+      box.classList.toggle("hidden", !opening);
+      setActiveManageTab(opening ? "editToggleBtn" : "");
+      if (opening) {
         box.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
     };
@@ -643,16 +675,29 @@ async function manageEvent(eventId) {
 
   $("#qrBtn").onclick = async () => {
     $("#manageError").textContent = "";
+    if ($("#editEventBox")) $("#editEventBox").classList.add("hidden");
+    if (activeManageTab === "qrBtn") {
+      $("#dynamicPanel").innerHTML = "";
+      setActiveManageTab("");
+      return;
+    }
+    setActiveManageTab("qrBtn");
     try {
       const q = await api(`/api/events/${encodeURIComponent(eventId)}/qr`, { method: "POST" });
       $("#dynamicPanel").innerHTML = `
-        <div class="panel-box">
+        <div class="panel-box qr-panel-row">
           <img class="qr-large" src="${q.qr}" alt="Event QR Code">
-          <p class="muted">Share link: <a target="_blank" href="${esc(q.url)}">${esc(q.url)}</a></p>
-          <a class="btn sm" href="${q.qr}" download="snapfind-${esc(e.access_code)}.png">Download QR PNG</a>
+          <div class="qr-panel-meta">
+            <h3>Guest Event QR Code</h3>
+            <p class="muted">Share link: <a target="_blank" href="${esc(q.url)}">${esc(q.url)}</a></p>
+            <div>
+              <a class="btn sm" href="${q.qr}" download="snapfind-${esc(e.access_code)}.png">Download QR PNG</a>
+            </div>
+          </div>
         </div>
       `;
     } catch (err) {
+      setActiveManageTab("");
       $("#manageError").textContent = err.message;
     }
   };
@@ -795,6 +840,13 @@ async function manageEvent(eventId) {
   if ($("#selectionBtn")) {
     $("#selectionBtn").onclick = async () => {
       $("#manageError").textContent = "";
+      if ($("#editEventBox")) $("#editEventBox").classList.add("hidden");
+      if (activeManageTab === "selectionBtn") {
+        $("#dynamicPanel").innerHTML = "";
+        setActiveManageTab("");
+        return;
+      }
+      setActiveManageTab("selectionBtn");
       try {
         const res = await api(`/api/events/${encodeURIComponent(eventId)}/selections`);
         $("#dynamicPanel").innerHTML = `
@@ -822,12 +874,21 @@ async function manageEvent(eventId) {
           </div>
         `;
       } catch (err) {
+        setActiveManageTab("");
         $("#manageError").textContent = err.message;
       }
     };
   }
 
   if ($("#editEventForm")) {
+    const editAiCb = $("#editEventForm").elements.ai_enabled;
+    const editSelfieCb = $("#editEventForm").elements.selfie_only;
+    if (editAiCb && editSelfieCb) {
+      editAiCb.onchange = () => {
+        editSelfieCb.disabled = !editAiCb.checked;
+        if (!editAiCb.checked) editSelfieCb.checked = false;
+      };
+    }
     $("#editEventForm").onsubmit = async (ev) => {
       ev.preventDefault();
       $("#manageError").textContent = "";
@@ -877,7 +938,12 @@ async function manageEvent(eventId) {
   }
 
   if ($("#indexFacesBtn")) {
-    $("#indexFacesBtn").onclick = () => runStudioFaceIndexing(eventId, data.photos);
+    $("#indexFacesBtn").onclick = () => {
+      if ($("#editEventBox")) $("#editEventBox").classList.add("hidden");
+      $("#dynamicPanel").innerHTML = "";
+      setActiveManageTab("indexFacesBtn");
+      runStudioFaceIndexing(eventId, data.photos);
+    };
   }
 
   document.querySelectorAll("[data-save-caption]").forEach((btn) => {
@@ -1083,6 +1149,10 @@ async function runStudioFaceIndexing(eventId, photos, forceReindex = false) {
 
 $("#newEvent").onclick = () => {
   $("#eventError").textContent = "";
+  if ($("#evAiEnabled") && $("#evSelfieOnly")) {
+    $("#evSelfieOnly").disabled = !$("#evAiEnabled").checked;
+    if (!$("#evAiEnabled").checked) $("#evSelfieOnly").checked = false;
+  }
   $("#eventDialog").showModal();
 };
 

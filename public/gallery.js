@@ -269,7 +269,7 @@ function renderPhotos() {
         <article class="gallery-photo ${isPicked ? "is-selected" : ""}">
           <div class="gallery-photo-media">
             <img loading="lazy" src="${esc(p.thumb_url)}" alt="${esc(p.caption || photoTitleFallback(p))}" role="button" tabindex="0" aria-label="Open photo: ${esc(p.caption || photoTitleFallback(p))}" data-open-lightbox="${esc(p.id)}">
-            ${matchInfo ? `<span class="match-badge">Approx. similarity ${matchInfo.confidence}/100</span>` : ""}
+            ${matchInfo ? `<span class="match-badge">${matchInfo.confidence}% match</span>` : ""}
             <label class="guest-dl-pick" title="Select photo for download">
               <input type="checkbox" class="guest-dl-cb" data-dl-pick="${esc(p.id)}" ${isPicked ? "checked" : ""}>
               <span>Pick</span>
@@ -385,6 +385,7 @@ async function selectPhoto(photoId) {
 function openLightbox(photoId) {
   const photo = photos.find((p) => p.id === photoId);
   if (!photo) return;
+  lightboxPhotoId = photo.id;
   const isFav = favouritedSet.has(photo.id);
   const isSel = selectedSet.has(photo.id);
 
@@ -540,13 +541,21 @@ async function loadGallery(page = 1) {
   }
 
   $("#aiSection").classList.toggle("hidden", !currentEvent.ai_enabled);
+  const aiEyebrow = $("#aiEyebrow");
+  const aiDesc = $("#aiDesc");
+  if (aiEyebrow) aiEyebrow.textContent = currentEvent.selfie_only ? "PRIVATE SELFIE ACCESS" : "OPTIONAL FEATURE";
+  if (aiDesc) {
+    aiDesc.textContent = currentEvent.selfie_only
+      ? "For guest privacy, this gallery only reveals photos that match your selfie. Your selfie image stays on this device, and only encrypted face descriptors are checked."
+      : "Face discovery is optional. Your selfie image is analysed on this device and never uploaded. When matching is requested, face descriptors (not the selfie image) are sent securely to SnapFind for comparison with event-photo descriptors.";
+  }
   if (currentEvent.ai_enabled && data.indexed_faces > 0) {
     $("#aiStatus").textContent = currentEvent.selfie_only
       ? `Ready (${data.indexed_faces} faces indexed). Scan your selfie to reveal only your photos.`
       : `Fast server-side AI search ready (${data.indexed_faces} faces pre-indexed).`;
   } else if (currentEvent.ai_enabled && currentEvent.selfie_only) {
     $("#aiStatus").textContent =
-      "Waiting for studio AI face indexing. Ask the photographer to click Index faces in Studio Dashboard.";
+      "Event photos are still being prepared by the photographer. Please check back shortly.";
   }
 
   renderPhotos();
@@ -930,7 +939,7 @@ $("#aiFind").onclick = async () => {
       $("#aiStatus").textContent =
         serverMatch.scanned_photos_count > 0
           ? "All photos in this event were scanned, but no detectable faces were found in them."
-          : "Waiting for studio face indexing: open Studio Dashboard → Manage Event once so the event's photos get indexed.";
+          : "Event photos are still being prepared by the photographer. Please check back shortly.";
     } else {
       // Fallback: fetch all pages of lightweight WebP previews and scan multi-scale locally
       $("#aiStatus").textContent = "Fetching event preview list…";
