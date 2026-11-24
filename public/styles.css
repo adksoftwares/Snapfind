@@ -2408,3 +2408,38 @@ body.dash .storage-progress::-moz-progress-bar { background:#849a66; border-radi
     min-width: 560px;
   }
 }
+
+/* ── SnapFind UI refresh · editorial photography workspace ── */
+:root { --ink:#18231d; --muted:#68736c; --accent:#55783b; --green:#c5e78b; --line:#e5e8df; --paper:#f7f8f3; --dark:#17231d; --sf-focus:#72944d; }
+body { background:#fff; color:var(--ink); }
+.top { position:sticky; top:0; z-index:30; backdrop-filter:blur(14px); background:rgba(255,255,255,.94); border-bottom-color:#e8ebe5; min-height:72px; height:auto; }
+.brand { letter-spacing:-1px; font-size:22px; }
+.top nav a:not(.btn) { color:#5d6b62; transition:color .16s ease; } .top nav a:not(.btn):hover { color:var(--accent); }
+.btn { border-radius:11px; min-height:42px; padding:11px 18px; transition:transform .16s ease,background .16s ease,border-color .16s ease,box-shadow .16s ease; }
+.btn:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 5px 14px rgba(24,35,29,.08); } .btn.ghost { background:#fff; }
+.btn:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible { outline:2px solid var(--sf-focus); outline-offset:3px; }
+.hero { padding-top:clamp(50px,7vw,92px); padding-bottom:clamp(44px,6vw,82px); gap:clamp(32px,5vw,72px); }
+.hero h1 { font-size:clamp(46px,6.2vw,82px); line-height:1.02; letter-spacing:-.065em; } .hero h1 em { color:#607e40; }
+.eyebrow { letter-spacing:2.2px; font-size:10px; } .lead { font-size:clamp(14px,1.3vw,16px); max-width:540px; line-height:1.78; }
+.actions { gap:14px; margin:26px 0 16px; } .code-jump { padding:5px; border:1px solid #e1e6dc; background:#f9faf7; border-radius:12px; } .code-jump input { border:0; background:transparent; min-height:44px; } .code-jump .btn { border-radius:9px; }
+.trust { gap:9px 18px; line-height:1.5; } .trust span { display:inline-flex; align-items:center; gap:6px; }
+.visual { border-radius:24px; background:linear-gradient(145deg,#f1f4ed,#e7eee0); padding:clamp(14px,2.3vw,28px); }
+.visual-card { border:1px solid rgba(30,50,35,.055); border-radius:18px; box-shadow:0 18px 55px rgba(25,43,30,.09); padding:18px; } .ph { height:clamp(112px,13vw,168px); border-radius:10px; }
+.float-tag { border-radius:12px; box-shadow:0 9px 28px rgba(30,45,35,.12); } .metrics { padding-top:25px; padding-bottom:25px; gap:18px; } .metrics div { line-height:1.45; } .metrics b { font-family:'Manrope',sans-serif; font-weight:800; }
+.section,.workflow { padding-top:clamp(50px,6vw,82px); padding-bottom:clamp(50px,6vw,82px); } .section h2,.workflow h2 { font-size:clamp(30px,3.8vw,46px); letter-spacing:-.045em; }
+.features { gap:18px; } .features article { border-radius:16px; padding:24px; transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease; } .features article:hover { transform:translateY(-3px); border-color:#d3ddc7; box-shadow:0 12px 30px rgba(27,42,32,.06); }
+.feature-icon { border-radius:11px; background:#f0f4e9; } .features h3 { letter-spacing:-.025em; } .features p { line-height:1.72; }
+.public-grid { gap:18px; } .public-card { border-radius:16px; border-color:#e7e9e2; } .public-card:hover { transform:translateY(-3px); box-shadow:0 14px 32px rgba(26,40,30,.075); }
+.public-cover { height:190px; background:linear-gradient(145deg,#eef3e9,#dfe9d6); } .public-body { padding:18px; } .public-body h3 { letter-spacing:-.025em; }
+.workflow { background:#f6f8f3; } .steps { gap:clamp(18px,3vw,36px); } .steps>div { padding-top:22px; } .steps b { font-family:'Manrope',sans-serif; } .steps p { max-width:360px; } footer { padding-top:30px; padding-bottom:30px; } footer b { letter-spacing:.5px; }
+dialog { border-radius:20px; padding:28px; border:1px solid #e9ece6; } dialog::backdrop { backdrop-filter:blur(3px); }
+.field input,dialog input:not([type=checkbox]):not([type=file]),dialog textarea,.panel-box input:not([type=checkbox]):not([type=file]),.panel-box textarea,.gallery-tools input,.profile-form input { border-radius:10px; min-height:42px; border-color:#dfe4dc; }
+.field input:focus-visible,dialog input:focus-visible,dialog textarea:focus-visible { border-color:#809d61; box-shadow:0 0 0 3px #77975518; }
+.sidebar { box-shadow:8px 0 24px rgba(12,25,17,.035); } .side-nav a { transition:background .15s ease,color .15s ease; }
+.dash-main { padding-top:clamp(24px,3.2vw,44px); } .dash-head h1 { letter-spacing:-.055em; } .stat-grid { gap:16px; }
+.stat { border-radius:15px; padding:20px 22px; transition:border-color .15s ease,transform .15s ease; } .stat:hover { border-color:#d7e0ce; transform:translateY(-1px); } .stat b { font-family:'Manrope',sans-serif; letter-spacing:-.04em; }
+.panel-box,.event-card,.staff-card,.settings-card { border-radius:15px; } .toast { border-radius:12px; box-shadow:0 12px 28px rgba(20,35,27,.12); }
+@media (max-width:1080px) { .hero { padding-left:6%; padding-right:6%; } .features { grid-template-columns:repeat(2,minmax(0,1fr)); } .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:720px) { .top { position:relative; padding:14px 5%; flex-wrap:wrap; gap:10px; } .top nav { gap:8px; flex-wrap:wrap; font-size:12px; } .top nav a[href="#features"],.top nav a[href="#public-events"],.top nav a[href="#workflow"] { display:none; } .hero { grid-template-columns:1fr; padding:40px 5% 34px; } .hero h1 { font-size:clamp(43px,12vw,64px); letter-spacing:-.06em; } .visual { max-width:560px; width:100%; margin:0 auto; } .ph { height:clamp(115px,36vw,165px); } .section,.workflow { padding:46px 5%; } .section h2,.workflow h2 { font-size:clamp(30px,9vw,40px); } .steps { grid-template-columns:1fr; gap:20px; } .steps p { max-width:none; } footer { padding:24px 5%; flex-wrap:wrap; } }
+@media (max-width:480px) { .features { grid-template-columns:1fr; } .metrics { grid-template-columns:1fr; gap:12px; } .code-jump { display:grid; grid-template-columns:1fr; } .code-jump .btn { width:100%; } .trust { display:grid; gap:8px; } .visual { padding:12px; border-radius:18px; } .visual-card { padding:14px; } .float-tag { right:6px; bottom:10px; font-size:11px; } dialog { padding:20px; } }
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { transition-duration:.01ms !important; animation-duration:.01ms !important; scroll-behavior:auto !important; } }
