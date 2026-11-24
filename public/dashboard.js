@@ -1190,7 +1190,14 @@ $("#eventClose").onclick = () => $("#eventDialog").close();
 
 $("#eventForm").onsubmit = async (e) => {
   e.preventDefault();
+  const submitButton = e.submitter || e.target.querySelector('button[type="submit"]');
+  const originalLabel = submitButton?.textContent || "Create event";
   $("#eventError").textContent = "";
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = "Creating event…";
+    submitButton.setAttribute("aria-busy", "true");
+  }
   const fd = new FormData(e.target);
   const payload = {
     title: fd.get("title"),
@@ -1210,6 +1217,12 @@ $("#eventForm").onsubmit = async (e) => {
     await loadDashboard();
   } catch (err) {
     $("#eventError").textContent = err.message;
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = originalLabel;
+      submitButton.removeAttribute("aria-busy");
+    }
   }
 };
 
