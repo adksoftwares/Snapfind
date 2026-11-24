@@ -437,6 +437,36 @@ document.querySelectorAll("[data-event-filter]").forEach((button) => {
   };
 });
 
+// Keyboard shortcuts keep the event library usable without reaching for the mouse.
+window.addEventListener("keydown", (event) => {
+  const target = event.target;
+  const typing = target instanceof HTMLElement && target.closest("input, textarea, select, [contenteditable='true']");
+  const command = event.ctrlKey || event.metaKey;
+  const eventDialog = $("#eventDialog");
+  const manageDialog = $("#manageDialog");
+
+  if (command && event.key.toLowerCase() === "k" && !eventDialog?.open && !manageDialog?.open) {
+    event.preventDefault();
+    $("#eventLibrarySearch")?.focus();
+    return;
+  }
+
+  if (command && event.key.toLowerCase() === "n" && !typing && !eventDialog?.open && !manageDialog?.open) {
+    const createButton = $("#newEvent");
+    if (createButton && !createButton.classList.contains("hidden")) {
+      event.preventDefault();
+      createButton.click();
+    }
+    return;
+  }
+
+  if (event.key === "Escape" && target === $("#eventLibrarySearch") && eventLibraryQuery) {
+    eventLibraryQuery = "";
+    $("#eventLibrarySearch").value = "";
+    renderDashboardEvents();
+  }
+});
+
 async function loadDashboard() {
   const data = await api("/api/dashboard");
   events = data.events;
