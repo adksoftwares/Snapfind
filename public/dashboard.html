@@ -71,7 +71,7 @@
       <div class="event-library-tools">
         <label class="event-library-search" for="eventLibrarySearch">
           <span class="sr-only">Search your events</span>
-          <input id="eventLibrarySearch" type="search" placeholder="Search events, venue or code…" autocomplete="off">
+          <input id="eventLibrarySearch" type="search" aria-describedby="eventLibrarySearchHint" placeholder="Search events, venue or code…" autocomplete="off"><small id="eventLibrarySearchHint" class="event-library-search-hint">Ctrl/⌘ K to focus · Esc clears</small>
         </label>
         <div class="event-library-filters" role="group" aria-label="Filter events by status">
           <button class="tab-btn active" type="button" data-event-filter="all" aria-pressed="true">All <span id="eventCountAll">0</span></button>
