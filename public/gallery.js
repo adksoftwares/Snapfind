@@ -570,7 +570,14 @@ async function loadGallery(page = 1) {
 
 $("#pinForm").onsubmit = async (e) => {
   e.preventDefault();
+  const submitButton = e.submitter || e.target.querySelector('button[type="submit"]');
+  const originalLabel = submitButton?.textContent || "Unlock";
   $("#pinError").textContent = "";
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = "Unlocking…";
+    submitButton.setAttribute("aria-busy", "true");
+  }
   try {
     const res = await api(`/api/gallery/${encodeURIComponent(code)}/unlock`, {
       method: "POST",
@@ -581,6 +588,12 @@ $("#pinForm").onsubmit = async (e) => {
     await loadGallery(1);
   } catch (err) {
     $("#pinError").textContent = err.message;
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = originalLabel;
+      submitButton.removeAttribute("aria-busy");
+    }
   }
 };
 
