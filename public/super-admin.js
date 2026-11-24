@@ -774,6 +774,44 @@ $("#createAccountForm").onsubmit = async (e) => {
   }
 };
 
+// Keep privileged form submissions single-flight and clearly communicated.
+function addPendingSubmitState(formId, pendingLabel) {
+  const form = document.getElementById(formId);
+  if (!form || typeof form.onsubmit !== "function") return;
+  const originalHandler = form.onsubmit;
+  form.onsubmit = async function (event) {
+    if (form.dataset.submitting === "true") {
+      event.preventDefault();
+      return;
+    }
+    form.dataset.submitting = "true";
+    const button = event.submitter || form.querySelector('button[type="submit"]');
+    const originalLabel = button?.textContent;
+    if (button) {
+      button.disabled = true;
+      button.textContent = pendingLabel;
+      button.setAttribute("aria-busy", "true");
+    }
+    try {
+      return await originalHandler.call(this, event);
+    } finally {
+      delete form.dataset.submitting;
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+        button.removeAttribute("aria-busy");
+      }
+    }
+  };
+}
+
+addPendingSubmitState("setupInitForm", "Preparing secure setup…");
+addPendingSubmitState("setupConfirmForm", "Verifying authenticator…");
+addPendingSubmitState("saLoginForm", "Signing in…");
+addPendingSubmitState("saMfaForm", "Verifying code…");
+addPendingSubmitState("createAccountForm", "Creating account…");
+
+
 // Studios
 async function loadStudios() {
   setTableLoading("#studiosTableWrap", "Loading studios…");
