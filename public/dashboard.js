@@ -1268,6 +1268,42 @@ async function performDashLogout() {
 $("#logout").onclick = performDashLogout;
 $("#topLogout").onclick = performDashLogout;
 
+// Consistent single-flight feedback for account and team forms.
+function addDashboardPendingState(formId, pendingLabel) {
+  const form = document.getElementById(formId);
+  if (!form || typeof form.onsubmit !== "function") return;
+  const originalHandler = form.onsubmit;
+  form.onsubmit = async function (event) {
+    if (form.dataset.submitting === "true") {
+      event.preventDefault();
+      return;
+    }
+    form.dataset.submitting = "true";
+    const button = event.submitter || form.querySelector('button[type="submit"]');
+    const originalLabel = button?.textContent;
+    if (button) {
+      button.disabled = true;
+      button.textContent = pendingLabel;
+      button.setAttribute("aria-busy", "true");
+    }
+    try {
+      return await originalHandler.call(this, event);
+    } finally {
+      delete form.dataset.submitting;
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+        button.removeAttribute("aria-busy");
+      }
+    }
+  };
+}
+
+addDashboardPendingState("staffForm", "Adding team member…");
+addDashboardPendingState("profileForm", "Saving profile…");
+addDashboardPendingState("passwordForm", "Updating password…");
+addDashboardPendingState("forcePwForm", "Updating password…");
+
 init().catch(() => {
   location.href = "/";
 });
