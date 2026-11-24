@@ -140,11 +140,14 @@ $("#codeJumpForm").onsubmit = (e) => {
 
 async function loadPublicEvents() {
   const container = $("#publicEventsGrid");
+  container.setAttribute("aria-busy", "true");
+  container.innerHTML = '<p class="muted" role="status" aria-live="polite">Loading public galleries…</p>';
   try {
     const data = await api("/api/public/events");
+    container.setAttribute("aria-busy", "false");
     if (!data.events.length) {
       container.innerHTML =
-        '<div class="empty-card"><span>No public galleries are currently listed.</span><small>Ask your photographer for a private event QR or access code.</small></div>';
+        '<div class="empty-card" role="status"><span>No public galleries are currently listed.</span><small>Ask your photographer for a private event QR or access code.</small></div>';
       return;
     }
     container.innerHTML = data.events
@@ -168,7 +171,10 @@ async function loadPublicEvents() {
       )
       .join("");
   } catch {
-    container.innerHTML = '<p class="muted">Could not load public galleries right now.</p>';
+    container.setAttribute("aria-busy", "false");
+    container.innerHTML = '<div class="empty-card" role="alert"><p class="muted">Could not load public galleries right now.</p><button class="btn sm ghost" type="button" data-retry-public-galleries>Try again</button></div>';
+    const retry = container.querySelector("[data-retry-public-galleries]");
+    if (retry) retry.onclick = () => loadPublicEvents();
   }
 }
 
