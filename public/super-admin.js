@@ -1035,6 +1035,7 @@ async function inspectStudio(studioId) {
         await inspectStudio(s.id);
         await loadStudios();
       } catch (err) {
+        $("#studioActionErr").className = "error";
         $("#studioActionErr").textContent = err.message;
       }
     };
@@ -1049,6 +1050,7 @@ async function inspectStudio(studioId) {
         await inspectStudio(s.id);
         await loadStudios();
       } catch (err) {
+        $("#studioActionErr").className = "error";
         $("#studioActionErr").textContent = err.message;
       }
     };
@@ -1065,7 +1067,8 @@ async function inspectStudio(studioId) {
       await inspectStudio(s.id);
       await loadStudios();
     } catch (err) {
-      $("#studioActionErr").textContent = err.message;
+      $("#studioActionErr").className = "error";
+        $("#studioActionErr").textContent = err.message;
     }
   };
 
