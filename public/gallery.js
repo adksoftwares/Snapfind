@@ -591,6 +591,9 @@ async function loadGallery(page = 1) {
     return true;
   } catch (err) {
     if (requestId !== galleryLoadSequence) return false;
+    $("#galleryMain").classList.remove("locked-mode");
+    $("#pinGate").classList.add("hidden");
+    $("#galleryContent").classList.remove("hidden");
     $("#galleryError").textContent = err.message || "The gallery could not be loaded.";
     $("#galleryMessage").textContent = photos.length
       ? "Previously loaded photos are still shown."
