@@ -597,7 +597,7 @@ async function inspectAccount(accountId) {
   $("#accDetClose").onclick = () => $("#accountDetailDialog").close();
 
   const showAccRes = (html, isErr = false) => {
-    $("#accActionResult").innerHTML = `<div class="panel-box ${isErr ? "error" : "success-msg"}">${html}</div>`;
+    $("#accActionResult").innerHTML = `<div class="panel-box ${isErr ? "error" : "success-msg"}" role="${isErr ? "alert" : "status"}" aria-live="${isErr ? "assertive" : "polite"}">${html}</div>`;
   };
 
   if ($("#accSuspendBtn")) {
@@ -730,6 +730,16 @@ async function inspectAccount(accountId) {
       }
     };
   }
+  addPendingButtonState($("#accSuspendBtn"), "Suspending account…");
+  addPendingButtonState($("#accReactivateBtn"), "Reactivating account…");
+  addPendingButtonState($("#accResetPwBtn"), "Preparing reset link…");
+  addPendingButtonState($("#accForcePwBtn"), "Applying password requirement…");
+  addPendingButtonState($("#accRevokeAllBtn"), "Revoking sessions…");
+  addPendingButtonState($("#delAccConfirmBtn"), "Deleting account…");
+  document.querySelectorAll("[data-revoke-sid]").forEach((btn) => {
+    addPendingButtonState(btn, "Revoking…");
+  });
+  addPendingSubmitState("editAccForm", "Saving account changes…");
 }
 
 // Create Account Modal
@@ -793,6 +803,32 @@ $("#createAccountForm").onsubmit = async (e) => {
 };
 
 // Keep privileged form submissions single-flight and clearly communicated.
+function addPendingButtonState(button, pendingLabel) {
+  if (!button || typeof button.onclick !== "function") return;
+  const originalHandler = button.onclick;
+  button.onclick = async function (event) {
+    if (button.dataset.submitting === "true") {
+      event.preventDefault();
+      return;
+    }
+    button.dataset.submitting = "true";
+    const originalLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = pendingLabel;
+    button.setAttribute("aria-busy", "true");
+    try {
+      return await originalHandler.call(this, event);
+    } finally {
+      delete button.dataset.submitting;
+      if (button.isConnected) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+        button.removeAttribute("aria-busy");
+      }
+    }
+  };
+}
+
 function addPendingSubmitState(formId, pendingLabel) {
   const form = document.getElementById(formId);
   if (!form || typeof form.onsubmit !== "function") return;
@@ -921,7 +957,7 @@ async function inspectStudio(studioId) {
           : `<button class="btn sm" id="studioActivateBtn" type="button">Activate studio</button>`
       }
     </div>
-    <p id="studioActionErr" class="error"></p>
+    <p id="studioActionErr" class="error" role="status" aria-live="polite"></p>
 
     <form id="editStudioForm" class="panel-box">
       <h3>Plan, quota &amp; notes</h3>
@@ -973,7 +1009,7 @@ async function inspectStudio(studioId) {
             <td>${ev.photo_count}</td>
             <td>${ev.selection_count}</td>
             <td>
-              <select data-sa-event-status="${esc(ev.id)}">
+              <select data-sa-event-status="${esc(ev.id)}" aria-label="Change status for ${esc(ev.title)}">
                 <option value="active" ${ev.status === "active" ? "selected" : ""}>active</option>
                 <option value="paused" ${ev.status === "paused" ? "selected" : ""}>paused</option>
                 <option value="archived" ${ev.status === "archived" ? "selected" : ""}>archived</option>
@@ -999,6 +1035,7 @@ async function inspectStudio(studioId) {
         await inspectStudio(s.id);
         await loadStudios();
       } catch (err) {
+        $("#studioActionErr").className = "error";
         $("#studioActionErr").textContent = err.message;
       }
     };
@@ -1013,6 +1050,7 @@ async function inspectStudio(studioId) {
         await inspectStudio(s.id);
         await loadStudios();
       } catch (err) {
+        $("#studioActionErr").className = "error";
         $("#studioActionErr").textContent = err.message;
       }
     };
@@ -1029,22 +1067,43 @@ async function inspectStudio(studioId) {
       await inspectStudio(s.id);
       await loadStudios();
     } catch (err) {
+      $("#studioActionErr").className = "error";
       $("#studioActionErr").textContent = err.message;
     }
   };
 
   document.querySelectorAll("[data-sa-event-status]").forEach((sel) => {
+    sel.dataset.savedStatus = sel.value;
     sel.onchange = async () => {
+      if (sel.disabled) return;
+      const previousStatus = sel.dataset.savedStatus;
+      const nextStatus = sel.value;
+      const message = $("#studioActionErr");
+      sel.disabled = true;
+      sel.setAttribute("aria-busy", "true");
+      message.textContent = "";
       try {
         await api(`/api/super-admin/events/${encodeURIComponent(sel.dataset.saEventStatus)}/status`, {
           method: "PATCH",
-          body: JSON.stringify({ status: sel.value }),
+          body: JSON.stringify({ status: nextStatus }),
         });
+        sel.dataset.savedStatus = nextStatus;
+        message.className = "success-msg";
+        message.textContent = "Event status updated.";
       } catch (err) {
-        $("#studioActionErr").textContent = err.message;
+        sel.value = previousStatus;
+        message.className = "error";
+        message.textContent = err.message;
+      } finally {
+        sel.disabled = false;
+        sel.removeAttribute("aria-busy");
       }
     };
   });
+
+  addPendingButtonState($("#studioSuspendBtn"), "Suspending studio…");
+  addPendingButtonState($("#studioActivateBtn"), "Activating studio…");
+  addPendingSubmitState("editStudioForm", "Updating studio…");
 }
 
 // Security Logs
