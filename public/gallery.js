@@ -588,6 +588,13 @@ async function loadGallery(page = 1) {
     }
 
     renderPhotos();
+
+    if (!socket && typeof io === "function") {
+      socket = io();
+      socket.emit("gallery:join", code);
+      socket.on("photos:added", () => loadGallery(currentPage));
+      socket.on("photos:removed", () => loadGallery(currentPage));
+    }
     return true;
   } catch (err) {
     if (requestId !== galleryLoadSequence) return false;
