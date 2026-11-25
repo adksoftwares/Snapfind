@@ -33,6 +33,9 @@ let searchTimer = null;
 let aiCancelled = false;
 let socket = null;
 let lightboxPhotoId = null;
+let pendingFavouriteIds = new Set();
+let pendingSelectionIds = new Set();
+let galleryLoadSequence = 0;
 
 function esc(value = "") {
   return String(value).replace(/[&<>"']/g, (c) => ({
@@ -263,6 +266,8 @@ function renderPhotos() {
     .map((p) => {
       const isFav = favouritedSet.has(p.id);
       const isSel = selectedSet.has(p.id);
+      const isFavPending = pendingFavouriteIds.has(p.id);
+      const isSelectPending = pendingSelectionIds.has(p.id);
       const isPicked = downloadPickSet.has(p.id);
       const matchInfo = activeFilter === "matches" ? matchedScoreById.get(p.id) : null;
       return `
@@ -278,8 +283,8 @@ function renderPhotos() {
           <div>
             <span class="photo-title">${esc(p.caption || p.original_name || "Event moment")}</span>
             <div class="gallery-actions">
-              <button type="button" class="${isFav ? "fav-on" : ""}" data-fav-toggle="${esc(p.id)}" aria-label="${isFav ? "Remove from favourites" : "Add to favourites"}" aria-pressed="${isFav}" title="${isFav ? "Remove favourite" : "Add favourite"}">${isFav ? "♥" : "♡"}</button>
-              <button type="button" data-select-photo="${esc(p.id)}" aria-label="${isSel ? "Photo already selected" : "Request this photo from the studio"}" title="Request photo from studio" ${isSel ? "disabled" : ""}>${isSel ? "✓ Selected" : "Select"}</button>
+              <button type="button" class="${isFav ? "fav-on" : ""}" data-fav-toggle="${esc(p.id)}" aria-label="${isFavPending ? "Saving favourite" : isFav ? "Remove from favourites" : "Add to favourites"}" aria-pressed="${isFav}" title="${isFavPending ? "Saving favourite" : isFav ? "Remove favourite" : "Add favourite"}" ${isFavPending ? 'disabled aria-busy="true"' : ""}>${isFavPending ? "Saving…" : isFav ? "♥" : "♡"}</button>
+              <button type="button" data-select-photo="${esc(p.id)}" aria-label="${isSelectPending ? "Sending photo request" : isSel ? "Photo already selected" : "Request this photo from the studio"}" title="Request photo from studio" ${isSel || isSelectPending ? "disabled" : ""} ${isSelectPending ? 'aria-busy="true"' : ""}>${isSelectPending ? "Sending…" : isSel ? "✓ Selected" : "Select"}</button>
               <a href="${esc(downloadUrl(p.url))}" download="${esc(p.original_name)}" aria-label="Download original: ${esc(p.original_name || "photo")}" title="Download original">↓</a>
             </div>
           </div>
@@ -344,6 +349,9 @@ function renderPhotos() {
 }
 
 async function toggleFavourite(photoId) {
+  if (pendingFavouriteIds.has(photoId)) return;
+  pendingFavouriteIds.add(photoId);
+  renderPhotos();
   $("#galleryError").textContent = "";
   try {
     const res = await api(`/api/gallery/${encodeURIComponent(code)}/favourite`, {
@@ -355,13 +363,18 @@ async function toggleFavourite(photoId) {
     } else {
       favouritedSet.delete(photoId);
     }
-    renderPhotos();
   } catch (err) {
     $("#galleryError").textContent = err.message;
+  } finally {
+    pendingFavouriteIds.delete(photoId);
+    renderPhotos();
   }
 }
 
 async function selectPhoto(photoId) {
+  if (pendingSelectionIds.has(photoId) || selectedSet.has(photoId)) return;
+  pendingSelectionIds.add(photoId);
+  renderPhotos();
   $("#galleryError").textContent = "";
   const guestName = $("#guestName").value.trim();
   const guestEmail = $("#guestEmail").value.trim();
@@ -376,9 +389,11 @@ async function selectPhoto(photoId) {
       }),
     });
     selectedSet.add(photoId);
-    renderPhotos();
   } catch (err) {
     $("#galleryError").textContent = err.message;
+  } finally {
+    pendingSelectionIds.delete(photoId);
+    renderPhotos();
   }
 }
 
@@ -400,8 +415,8 @@ function openLightbox(photoId) {
         <button class="btn sm ghost" id="lbPrev" type="button" aria-label="Previous photo">← Previous</button>
         <span class="lightbox-position" id="lbPosition"></span>
         <button class="btn sm ghost" id="lbNext" type="button" aria-label="Next photo">Next →</button>
-        <button class="btn sm ghost" id="lbFav" type="button">${isFav ? "♥ Favourited" : "♡ Favourite"}</button>
-        <button class="btn sm ghost" id="lbSelect" type="button" ${isSel ? "disabled" : ""}>${isSel ? "✓ Selected" : "Request / Select"}</button>
+        <button class="btn sm ghost" id="lbFav" type="button" ${pendingFavouriteIds.has(photo.id) ? 'disabled aria-busy="true"' : ""}>${pendingFavouriteIds.has(photo.id) ? "Saving…" : isFav ? "♥ Favourited" : "♡ Favourite"}</button>
+        <button class="btn sm ghost" id="lbSelect" type="button" ${isSel || pendingSelectionIds.has(photo.id) ? "disabled" : ""} ${pendingSelectionIds.has(photo.id) ? 'aria-busy="true"' : ""}>${pendingSelectionIds.has(photo.id) ? "Sending…" : isSel ? "✓ Selected" : "Request / Select"}</button>
         <a class="btn sm" href="${esc(downloadUrl(photo.url))}" download="${esc(photo.original_name)}">↓ Download original</a>
       </div>
     </div>
@@ -477,6 +492,7 @@ async function fetchAllEventPhotosForScan() {
 }
 
 async function loadGallery(page = 1) {
+  const requestId = ++galleryLoadSequence;
   const q = $("#gallerySearch").value.trim();
   const params = new URLSearchParams({
     page: String(page),
@@ -485,86 +501,118 @@ async function loadGallery(page = 1) {
   });
   if (q) params.set("q", q);
 
-  const data = await api(`/api/gallery/${encodeURIComponent(code)}?${params.toString()}`);
-  if (data.csrfToken) csrfToken = data.csrfToken;
-  currentEvent = data.event;
-  const hasFaceConsent = Boolean(currentEvent.face_match_consent);
-  $("#aiConsent").checked = hasFaceConsent;
-  setAiConsentControls(hasFaceConsent);
+  const grid = $("#galleryGrid");
+  const retryButton = $("#galleryRetryBtn");
+  grid.setAttribute("aria-busy", "true");
+  if (retryButton) retryButton.classList.add("hidden");
+  $("#galleryError").textContent = "";
+  $("#galleryMessage").textContent = photos.length
+    ? "Refreshing gallery…"
+    : "Loading event photos…";
 
-  $("#eventTitle").textContent = currentEvent.title;
-  $("#eventMeta").textContent = [currentEvent.event_date, currentEvent.venue]
-    .filter(Boolean)
-    .join(" · ");
-  $("#eventDesc").textContent = currentEvent.description || "";
-  $("#galleryBadge").textContent = currentEvent.selfie_only
-    ? "PRIVATE SELFIE GALLERY"
-    : currentEvent.has_pin
-      ? "PRIVATE GALLERY"
-      : "EVENT GALLERY";
+  try {
+    const data = await api(`/api/gallery/${encodeURIComponent(code)}?${params.toString()}`);
+    if (requestId !== galleryLoadSequence) return false;
 
-  if (data.locked) {
-    $("#galleryMain").classList.add("locked-mode");
-    $("#pinGate").classList.remove("hidden");
-    $("#galleryContent").classList.add("hidden");
-    return;
-  }
+    if (data.csrfToken) csrfToken = data.csrfToken;
+    currentEvent = data.event;
+    const hasFaceConsent = Boolean(currentEvent.face_match_consent);
+    $("#aiConsent").checked = hasFaceConsent;
+    setAiConsentControls(hasFaceConsent);
 
-  $("#galleryMain").classList.remove("locked-mode");
-  $("#pinGate").classList.add("hidden");
-  $("#galleryContent").classList.remove("hidden");
+    $("#eventTitle").textContent = currentEvent.title;
+    $("#eventMeta").textContent = [currentEvent.event_date, currentEvent.venue]
+      .filter(Boolean)
+      .join(" · ");
+    $("#eventDesc").textContent = currentEvent.description || "";
+    $("#galleryBadge").textContent = currentEvent.selfie_only
+      ? "PRIVATE SELFIE GALLERY"
+      : currentEvent.has_pin
+        ? "PRIVATE GALLERY"
+        : "EVENT GALLERY";
 
-  photos = data.photos;
-  totalEventPhotos = Number(data.total_event_photos ?? photos.length);
-  currentPage = data.pagination.page;
-  totalPages = data.pagination.total_pages || 1;
-  favouritedSet = new Set(data.favourited_ids || []);
-  selectedSet = new Set(data.selected_ids || []);
-
-  if (currentEvent.selfie_only) {
-    const content = $("#galleryContent");
-    const aiSec = $("#aiSection");
-    const filtersEl = content?.querySelector(".gallery-filters");
-    if (aiSec && content && filtersEl && aiSec.nextElementSibling !== filtersEl) {
-      content.insertBefore(aiSec, filtersEl);
+    if (data.locked) {
+      $("#galleryMain").classList.add("locked-mode");
+      $("#pinGate").classList.remove("hidden");
+      $("#galleryContent").classList.add("hidden");
+      return true;
     }
-    if (data.selfie_scanned && photos.length > 0 && !matchedPhotoIds) {
-      matchedPhotoIds = new Set(photos.map((p) => p.id));
-      activeFilter = "matches";
+
+    $("#galleryMain").classList.remove("locked-mode");
+    $("#pinGate").classList.add("hidden");
+    $("#galleryContent").classList.remove("hidden");
+
+    photos = data.photos;
+    totalEventPhotos = Number(data.total_event_photos ?? photos.length);
+    currentPage = data.pagination.page;
+    totalPages = data.pagination.total_pages || 1;
+    favouritedSet = new Set(data.favourited_ids || []);
+    selectedSet = new Set(data.selected_ids || []);
+
+    if (currentEvent.selfie_only) {
+      const content = $("#galleryContent");
+      const aiSec = $("#aiSection");
+      const filtersEl = content?.querySelector(".gallery-filters");
+      if (aiSec && content && filtersEl && aiSec.nextElementSibling !== filtersEl) {
+        content.insertBefore(aiSec, filtersEl);
+      }
+      if (data.selfie_scanned && photos.length > 0 && !matchedPhotoIds) {
+        matchedPhotoIds = new Set(photos.map((p) => p.id));
+        activeFilter = "matches";
+      }
+      $("[data-filter='all']")?.classList.toggle("hidden", photos.length === 0);
+      $("#aiResetScanBtn")?.classList.toggle("hidden", !(data.selfie_scanned || matchedPhotoIds));
     }
-    $("[data-filter='all']")?.classList.toggle("hidden", photos.length === 0);
-    $("#aiResetScanBtn")?.classList.toggle("hidden", !(data.selfie_scanned || matchedPhotoIds));
-  }
 
-  if (activeFilter === "matches" && matchedPhotoIds && !currentEvent.selfie_only) {
-    await ensureMatchedPhotosLoaded(matchedPhotoIds);
-  }
+    if (activeFilter === "matches" && matchedPhotoIds && !currentEvent.selfie_only) {
+      await ensureMatchedPhotosLoaded(matchedPhotoIds);
+      if (requestId !== galleryLoadSequence) return false;
+    }
 
-  $("#aiSection").classList.toggle("hidden", !currentEvent.ai_enabled);
-  const aiEyebrow = $("#aiEyebrow");
-  const aiDesc = $("#aiDesc");
-  if (aiEyebrow) aiEyebrow.textContent = currentEvent.selfie_only ? "PRIVATE SELFIE ACCESS" : "OPTIONAL FEATURE";
-  if (aiDesc) {
-    aiDesc.textContent = currentEvent.selfie_only
-      ? "For guest privacy, this gallery only reveals photos that match your selfie. Your selfie image stays on this device, and only encrypted face descriptors are checked."
-      : "Face discovery is optional. Your selfie image is analysed on this device and never uploaded. When matching is requested, face descriptors (not the selfie image) are sent securely to SnapFind for comparison with event-photo descriptors.";
-  }
-  if (currentEvent.ai_enabled && data.indexed_faces > 0) {
-    $("#aiStatus").textContent = currentEvent.selfie_only
-      ? `Ready (${data.indexed_faces} faces indexed). Scan your selfie to reveal only your photos.`
-      : `Fast server-side AI search ready (${data.indexed_faces} faces pre-indexed).`;
-  } else if (currentEvent.ai_enabled && currentEvent.selfie_only) {
-    $("#aiStatus").textContent =
-      "Event photos are still being prepared by the photographer. Please check back shortly.";
-  }
+    $("#aiSection").classList.toggle("hidden", !currentEvent.ai_enabled);
+    const aiEyebrow = $("#aiEyebrow");
+    const aiDesc = $("#aiDesc");
+    if (aiEyebrow) aiEyebrow.textContent = currentEvent.selfie_only ? "PRIVATE SELFIE ACCESS" : "OPTIONAL FEATURE";
+    if (aiDesc) {
+      aiDesc.textContent = currentEvent.selfie_only
+        ? "For guest privacy, this gallery only reveals photos that match your selfie. Your selfie image stays on this device, and only encrypted face descriptors are checked."
+        : "Face discovery is optional. Your selfie image is analysed on this device and never uploaded. When matching is requested, face descriptors (not the selfie image) are sent securely to SnapFind for comparison with event-photo descriptors.";
+    }
+    if (currentEvent.ai_enabled && data.indexed_faces > 0) {
+      $("#aiStatus").textContent = currentEvent.selfie_only
+        ? `Ready (${data.indexed_faces} faces indexed). Scan your selfie to reveal only your photos.`
+        : `Fast server-side AI search ready (${data.indexed_faces} faces pre-indexed).`;
+    } else if (currentEvent.ai_enabled && currentEvent.selfie_only) {
+      $("#aiStatus").textContent =
+        "Event photos are still being prepared by the photographer. Please check back shortly.";
+    }
 
-  renderPhotos();
+    renderPhotos();
 
-  if (!socket && typeof io === "function") {
-    socket = io();
-    socket.emit("gallery:join", code);
-    socket.on("photos:added", () => loadGallery(currentPage));
-    socket.on("photos:removed", () => loadGallery(currentPage));
+    if (!socket && typeof io === "function") {
+      socket = io();
+      socket.emit("gallery:join", code);
+      socket.on("photos:added", () => loadGallery(currentPage));
+      socket.on("photos:removed", () => loadGallery(currentPage));
+    }
+    return true;
+  } catch (err) {
+    if (requestId !== galleryLoadSequence) return false;
+    $("#galleryMain").classList.remove("locked-mode");
+    $("#pinGate").classList.add("hidden");
+    $("#galleryContent").classList.remove("hidden");
+    $("#galleryError").textContent = err.message || "The gallery could not be loaded.";
+    $("#galleryMessage").textContent = photos.length
+      ? "Previously loaded photos are still shown."
+      : "Photos are temporarily unavailable.";
+    if (!currentEvent) {
+      $("#eventTitle").textContent = "Gallery unavailable";
+      $("#eventDesc").textContent = "Please retry to load this event gallery.";
+    }
+    if (retryButton) retryButton.classList.remove("hidden");
+    return false;
+  } finally {
+    if (requestId === galleryLoadSequence) grid.removeAttribute("aria-busy");
   }
 }
 
@@ -1025,7 +1073,5 @@ $("#aiResetScanBtn").onclick = async () => {
   renderPhotos();
 };
 
-loadGallery(1).catch((err) => {
-  $("#eventTitle").textContent = "Gallery unavailable";
-  $("#eventDesc").textContent = err.message;
-});
+$("#galleryRetryBtn").onclick = () => loadGallery(currentPage);
+loadGallery(1);
