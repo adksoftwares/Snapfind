@@ -236,88 +236,171 @@ $("#disableMfaBtn").onclick = () => {
 };
 
 async function loadSelfSessions() {
-  const d = await api("/api/auth/sessions");
-  $("#selfSessionsWrap").innerHTML = d.sessions.length
-    ? `<table>
-        <tr><th>Device / Browser</th><th>IP</th><th>Created</th><th>Last seen</th><th>Action</th></tr>
-        ${d.sessions
-          .map(
-            (s) => `
-          <tr>
-            <td>${esc(s.device_label)} ${s.current ? '<span class="badge">current</span>' : ""}</td>
-            <td>${esc(s.ip)}</td>
-            <td>${esc(s.created_at)}</td>
-            <td>${esc(s.last_seen_at)}</td>
-            <td>${
-              s.current
-                ? '<span class="muted">This device</span>'
-                : `<button class="btn sm danger" data-revoke-self-sid="${esc(s.sid)}" type="button">Sign out</button>`
-            }</td>
-          </tr>`
-          )
-          .join("")}
-      </table>`
-    : '<p class="muted">No active sessions recorded.</p>';
+  const wrap = $("#selfSessionsWrap");
+  const message = $("#selfSessionsMsg");
+  wrap.innerHTML = '<p class="muted" role="status">Loading active sessions…</p>';
+  if (message) {
+    message.textContent = "";
+    message.className = "muted";
+  }
 
-  document.querySelectorAll("[data-revoke-self-sid]").forEach((btn) => {
-    btn.onclick = async () => {
-      await api(`/api/auth/sessions/${encodeURIComponent(btn.dataset.revokeSelfSid)}`, {
-        method: "DELETE",
-      });
-      await loadSelfSessions();
-    };
-  });
+  try {
+    const d = await api("/api/auth/sessions");
+    const sessions = Array.isArray(d.sessions) ? d.sessions : [];
+    wrap.innerHTML = sessions.length
+      ? `<table>
+          <caption class="sr-only">Active sign-in sessions for your account</caption>
+          <thead><tr><th scope="col">Device / Browser</th><th scope="col">IP</th><th scope="col">Created</th><th scope="col">Last seen</th><th scope="col">Action</th></tr></thead>
+          <tbody>
+            ${sessions.map((s) => `
+              <tr>
+                <td>${esc(s.device_label)} ${s.current ? '<span class="badge">current</span>' : ""}</td>
+                <td>${esc(s.ip)}</td>
+                <td>${esc(s.created_at)}</td>
+                <td>${esc(s.last_seen_at)}</td>
+                <td>${s.current
+                  ? '<span class="muted">This device</span>'
+                  : `<button class="btn sm danger" data-revoke-self-sid="${esc(s.sid)}" type="button">Sign out</button>`}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>`
+      : '<p class="muted">No active sessions recorded.</p>';
+
+    wrap.querySelectorAll("[data-revoke-self-sid]").forEach((btn) => {
+      btn.onclick = async () => {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.textContent = "Signing out…";
+        btn.setAttribute("aria-busy", "true");
+        if (message) message.textContent = "";
+        try {
+          await api(`/api/auth/sessions/${encodeURIComponent(btn.dataset.revokeSelfSid)}`, {
+            method: "DELETE",
+          });
+          const refreshed = await loadSelfSessions();
+          if (message) {
+            message.textContent = refreshed
+              ? "The selected session has been signed out."
+              : "The session was signed out, but the list could not refresh. Use Retry below.";
+            message.className = "success-msg";
+          }
+        } catch (err) {
+          btn.disabled = false;
+          btn.textContent = "Sign out";
+          btn.removeAttribute("aria-busy");
+          setStatusMsg("#selfSessionsMsg", err.message, true);
+        }
+      };
+    });
+    return true;
+  } catch (err) {
+    wrap.innerHTML = `<div class="empty-card"><p class="error" role="alert">${esc(err.message || "Failed to load active sessions.")}</p><button class="btn sm ghost" type="button" data-retry-self-sessions>Retry</button></div>`;
+    const retry = wrap.querySelector("[data-retry-self-sessions]");
+    if (retry) retry.onclick = () => loadSelfSessions();
+    setStatusMsg("#selfSessionsMsg", "Active sessions could not be loaded.", true);
+    return false;
+  }
 }
 
 async function loadStaff() {
-  const d = await api("/api/studio/staff");
-  $("#staffListWrap").innerHTML = d.staff.length
-    ? `<table>
-        <tr><th>Name</th><th>Email</th><th>Permissions</th><th>Status</th><th>Action</th></tr>
-        ${d.staff
-          .map(
-            (s) => `
-          <tr>
-            <td>${esc(s.name)}</td>
-            <td>${esc(s.email)}</td>
-            <td>${s.staff_permissions.map((p) => `<span class="badge neutral">${esc(p)}</span>`).join(" ") || '<span class="muted">None</span>'}</td>
-            <td><span class="badge ${s.status === "suspended" ? "warn" : ""}">${esc(s.status)}</span></td>
-            <td>
-              <button class="btn sm ghost" data-toggle-staff="${esc(s.id)}" data-next-status="${s.status === "active" ? "suspended" : "active"}" type="button">
-                ${s.status === "active" ? "Suspend" : "Activate"}
-              </button>
-              <button class="btn sm danger" data-del-staff="${esc(s.id)}" type="button">Remove</button>
-            </td>
-          </tr>`
-          )
-          .join("")}
-      </table>`
-    : '<p class="muted">No staff members added yet.</p>';
+  const wrap = $("#staffListWrap");
+  wrap.innerHTML = '<p class="muted" role="status">Loading team members…</p>';
 
-  document.querySelectorAll("[data-toggle-staff]").forEach((btn) => {
-    btn.onclick = async () => {
-      await api(`/api/studio/staff/${encodeURIComponent(btn.dataset.toggleStaff)}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: btn.dataset.nextStatus }),
-      });
-      await loadStaff();
-    };
-  });
+  try {
+    const d = await api("/api/studio/staff");
+    const staff = Array.isArray(d.staff) ? d.staff : [];
+    wrap.innerHTML = staff.length
+      ? `<table>
+          <caption class="sr-only">Studio staff members and permissions</caption>
+          <thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Permissions</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead>
+          <tbody>
+            ${staff.map((s) => `
+              <tr>
+                <td>${esc(s.name)}</td>
+                <td>${esc(s.email)}</td>
+                <td>${(s.staff_permissions || []).map((p) => `<span class="badge neutral">${esc(p)}</span>`).join(" ") || '<span class="muted">None</span>'}</td>
+                <td><span class="badge ${s.status === "suspended" ? "warn" : ""}">${esc(s.status)}</span></td>
+                <td>
+                  <button class="btn sm ghost" data-toggle-staff="${esc(s.id)}" data-next-status="${s.status === "active" ? "suspended" : "active"}" type="button">${s.status === "active" ? "Suspend" : "Activate"}</button>
+                  <button class="btn sm danger" data-del-staff="${esc(s.id)}" type="button">Remove</button>
+                </td>
+              </tr>`).join("")}
+          </tbody>
+        </table>`
+      : '<p class="muted">No staff members added yet.</p>';
 
-  document.querySelectorAll("[data-del-staff]").forEach((btn) => {
-    let armed = false;
-    btn.onclick = async () => {
-      if (!armed) {
-        armed = true;
-        btn.textContent = "Confirm?";
-        return;
-      }
-      await api(`/api/studio/staff/${encodeURIComponent(btn.dataset.delStaff)}`, {
-        method: "DELETE",
-      });
-      await loadStaff();
-    };
-  });
+    wrap.querySelectorAll("[data-toggle-staff]").forEach((btn) => {
+      btn.onclick = async () => {
+        if (btn.disabled) return;
+        const nextStatus = btn.dataset.nextStatus;
+        btn.disabled = true;
+        btn.textContent = nextStatus === "suspended" ? "Suspending…" : "Activating…";
+        btn.setAttribute("aria-busy", "true");
+        try {
+          await api(`/api/studio/staff/${encodeURIComponent(btn.dataset.toggleStaff)}`, {
+            method: "PATCH",
+            body: JSON.stringify({ status: nextStatus }),
+          });
+          const refreshed = await loadStaff();
+          setStatusMsg(
+            "#staffMsg",
+            refreshed
+              ? `Staff member ${nextStatus === "suspended" ? "suspended" : "activated"}.`
+              : "The change was saved, but the team list could not refresh. Use Retry below.",
+            false
+          );
+        } catch (err) {
+          btn.disabled = false;
+          btn.textContent = nextStatus === "suspended" ? "Suspend" : "Activate";
+          btn.removeAttribute("aria-busy");
+          setStatusMsg("#staffMsg", err.message, true);
+        }
+      };
+    });
+
+    wrap.querySelectorAll("[data-del-staff]").forEach((btn) => {
+      let armed = false;
+      btn.onclick = async () => {
+        if (!armed) {
+          armed = true;
+          btn.textContent = "Confirm remove?";
+          btn.setAttribute("aria-pressed", "true");
+          return;
+        }
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.textContent = "Removing…";
+        btn.setAttribute("aria-busy", "true");
+        try {
+          await api(`/api/studio/staff/${encodeURIComponent(btn.dataset.delStaff)}`, {
+            method: "DELETE",
+          });
+          const refreshed = await loadStaff();
+          setStatusMsg(
+            "#staffMsg",
+            refreshed
+              ? "Staff member removed."
+              : "The staff member was removed, but the team list could not refresh. Use Retry below.",
+            false
+          );
+        } catch (err) {
+          armed = false;
+          btn.disabled = false;
+          btn.textContent = "Remove";
+          btn.removeAttribute("aria-pressed");
+          btn.removeAttribute("aria-busy");
+          setStatusMsg("#staffMsg", err.message, true);
+        }
+      };
+    });
+    return true;
+  } catch (err) {
+    wrap.innerHTML = `<div class="empty-card"><p class="error" role="alert">${esc(err.message || "Failed to load team members.")}</p><button class="btn sm ghost" type="button" data-retry-staff>Retry</button></div>`;
+    const retry = wrap.querySelector("[data-retry-staff]");
+    if (retry) retry.onclick = () => loadStaff();
+    setStatusMsg("#staffMsg", "Team members could not be loaded.", true);
+    return false;
+  }
 }
 
 $("#staffForm").onsubmit = async (e) => {
