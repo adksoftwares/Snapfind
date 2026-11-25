@@ -8,6 +8,7 @@ let studioPage = 1;
 let secPage = 1;
 let auditPage = 1;
 let searchTimers = {};
+let listRequestIds = { overview: 0, accounts: 0, studios: 0, security: 0, sessions: 0, audit: 0 };
 
 function esc(value = "") {
   return String(value).replace(/[&<>"']/g, (c) => ({
@@ -92,7 +93,13 @@ function setGlobalMsg(text, isError = false) {
 
 function setTableLoading(wrapSelector, label = "Loading…") {
   const el = $(wrapSelector);
-  if (el) el.innerHTML = `<div class="empty-card">${esc(label)}</div>`;
+  if (!el) return;
+  el.setAttribute("aria-busy", "true");
+  el.innerHTML = `<div class="empty-card" role="status">${esc(label)}</div>`;
+}
+
+function setTableReady(wrapSelector) {
+  $(wrapSelector)?.removeAttribute("aria-busy");
 }
 
 function setTableError(wrapSelector, err, retryFn) {
@@ -100,7 +107,8 @@ function setTableError(wrapSelector, err, retryFn) {
   setGlobalMsg(msg, true);
   const el = $(wrapSelector);
   if (!el) return;
-  el.innerHTML = `<div class="empty-card"><p class="error">${esc(msg)}</p><button class="btn sm ghost" type="button" data-retry-load>Retry</button></div>`;
+  el.removeAttribute("aria-busy");
+  el.innerHTML = `<div class="empty-card"><p class="error" role="alert">${esc(msg)}</p><button class="btn sm ghost" type="button" data-retry-load>Retry</button></div>`;
   const btn = el.querySelector("[data-retry-load]");
   if (btn && retryFn) {
     btn.onclick = () => retryFn().catch(() => {});
@@ -317,7 +325,9 @@ document.querySelectorAll("[data-sa-view]").forEach((link) => {
 
 // Overview
 async function loadOverview() {
+  const requestId = ++listRequestIds.overview;
   const d = await api("/api/super-admin/overview");
+  if (requestId !== listRequestIds.overview) return;
   const ownerWord = d.accounts.studio_owners === 1 ? "owner" : "owners";
   const sessionWord = d.sessions.active_sessions === 1 ? "active session" : "active sessions";
   $("#overviewKpis").innerHTML = `
@@ -390,7 +400,9 @@ function renderPagination(containerSelector, pagination, onPage) {
 }
 
 async function loadAccounts() {
+  const requestId = ++listRequestIds.accounts;
   setTableLoading("#accountsTableWrap", "Loading accounts…");
+  const isCurrentRequest = () => requestId === listRequestIds.accounts;
   const params = new URLSearchParams({
     page: String(accPage),
     limit: "15",
@@ -401,11 +413,15 @@ async function loadAccounts() {
   let d;
   try {
     d = await api(`/api/super-admin/accounts?${params.toString()}`);
+    if (!isCurrentRequest()) return;
   } catch (err) {
+    if (!isCurrentRequest()) return;
     setTableError("#accountsTableWrap", err, loadAccounts);
     return;
   }
 
+  if (!isCurrentRequest()) return;
+  setTableReady("#accountsTableWrap");
   $("#accountsTableWrap").innerHTML = d.accounts.length
     ? `<table>
         <tr><th>Name</th><th>Email</th><th>Role</th><th>Studio</th><th>Status</th><th>Last login</th><th>Registered</th><th>Action</th></tr>
@@ -450,10 +466,12 @@ $("#accSearch").oninput = () => {
 };
 $("#accRoleFilter").onchange = () => {
   accPage = 1;
+  clearTimeout(searchTimers.acc);
   loadAccounts();
 };
 $("#accStatusFilter").onchange = () => {
   accPage = 1;
+  clearTimeout(searchTimers.acc);
   loadAccounts();
 };
 
@@ -814,7 +832,9 @@ addPendingSubmitState("createAccountForm", "Creating account…");
 
 // Studios
 async function loadStudios() {
+  const requestId = ++listRequestIds.studios;
   setTableLoading("#studiosTableWrap", "Loading studios…");
+  const isCurrentRequest = () => requestId === listRequestIds.studios;
   const params = new URLSearchParams({
     page: String(studioPage),
     limit: "15",
@@ -825,11 +845,15 @@ async function loadStudios() {
   let d;
   try {
     d = await api(`/api/super-admin/studios?${params.toString()}`);
+    if (!isCurrentRequest()) return;
   } catch (err) {
+    if (!isCurrentRequest()) return;
     setTableError("#studiosTableWrap", err, loadStudios);
     return;
   }
 
+  if (!isCurrentRequest()) return;
+  setTableReady("#studiosTableWrap");
   $("#studiosTableWrap").innerHTML = d.studios.length
     ? `<table>
         <tr><th>Studio</th><th>Owner</th><th>Plan</th><th>Status</th><th>Usage</th><th>Registered</th><th>Action</th></tr>
@@ -867,10 +891,12 @@ $("#studioSearch").oninput = () => {
 };
 $("#studioStatusFilter").onchange = () => {
   studioPage = 1;
+  clearTimeout(searchTimers.studio);
   loadStudios();
 };
 $("#studioPlanFilter").onchange = () => {
   studioPage = 1;
+  clearTimeout(searchTimers.studio);
   loadStudios();
 };
 $("#refreshStudiosBtn").onclick = () => {
@@ -1023,7 +1049,9 @@ async function inspectStudio(studioId) {
 
 // Security Logs
 async function loadSecurity() {
+  const requestId = ++listRequestIds.security;
   setTableLoading("#securityTableWrap", "Loading security logs…");
+  const isCurrentRequest = () => requestId === listRequestIds.security;
   const params = new URLSearchParams({
     page: String(secPage),
     limit: "25",
@@ -1034,11 +1062,15 @@ async function loadSecurity() {
   let d;
   try {
     d = await api(`/api/super-admin/security?${params.toString()}`);
+    if (!isCurrentRequest()) return;
   } catch (err) {
+    if (!isCurrentRequest()) return;
     setTableError("#securityTableWrap", err, loadSecurity);
     return;
   }
 
+  if (!isCurrentRequest()) return;
+  setTableReady("#securityTableWrap");
   $("#securityTableWrap").innerHTML = d.events.length
     ? `<table>
         <tr><th>Time</th><th>Email</th><th>Event</th><th>IP</th><th>Device / Browser</th><th>Details</th></tr>
@@ -1073,23 +1105,31 @@ $("#secSearch").oninput = () => {
 };
 $("#secTypeFilter").onchange = () => {
   secPage = 1;
+  clearTimeout(searchTimers.sec);
   loadSecurity();
 };
 $("#secSuspiciousOnly").onchange = () => {
   secPage = 1;
+  clearTimeout(searchTimers.sec);
   loadSecurity();
 };
 
 // Active Sessions
 async function loadSessions() {
+  const requestId = ++listRequestIds.sessions;
   setTableLoading("#sessionsTableWrap", "Loading active sessions…");
+  const isCurrentRequest = () => requestId === listRequestIds.sessions;
   let d;
   try {
     d = await api("/api/super-admin/sessions?active_only=1");
+    if (!isCurrentRequest()) return;
   } catch (err) {
+    if (!isCurrentRequest()) return;
     setTableError("#sessionsTableWrap", err, loadSessions);
     return;
   }
+  if (!isCurrentRequest()) return;
+  setTableReady("#sessionsTableWrap");
   $("#sessionsTableWrap").innerHTML = d.sessions.length
     ? `<table>
         <tr><th>User</th><th>Role</th><th>Studio</th><th>Device</th><th>IP</th><th>Last seen</th><th>Action</th></tr>
@@ -1133,7 +1173,9 @@ $("#refreshSessionsBtn").onclick = () =>
 
 // Audit Logs
 async function loadAuditLogs() {
+  const requestId = ++listRequestIds.audit;
   setTableLoading("#auditTableWrap", "Loading audit logs…");
+  const isCurrentRequest = () => requestId === listRequestIds.audit;
   const params = new URLSearchParams({
     page: String(auditPage),
     limit: "25",
@@ -1142,11 +1184,15 @@ async function loadAuditLogs() {
   let d;
   try {
     d = await api(`/api/super-admin/audit-logs?${params.toString()}`);
+    if (!isCurrentRequest()) return;
   } catch (err) {
+    if (!isCurrentRequest()) return;
     setTableError("#auditTableWrap", err, loadAuditLogs);
     return;
   }
 
+  if (!isCurrentRequest()) return;
+  setTableReady("#auditTableWrap");
   $("#auditTableWrap").innerHTML = d.logs.length
     ? `<table>
         <tr><th>Time</th><th>Actor</th><th>Action</th><th>Entity</th><th>Details</th><th>IP</th></tr>
