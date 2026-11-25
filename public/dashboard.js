@@ -717,10 +717,10 @@ async function manageEvent(eventId) {
                   <span class="photo-card-name" title="${esc(p.original_name)}">${esc(p.original_name)}</span>
                   <span class="photo-card-faces">${p.face_indexed ? `${p.face_count} faces` : "Not indexed"}</span>
                 </div>
-                <input type="text" value="${esc(p.caption || "")}" placeholder="Add caption…" data-caption-input="${esc(p.id)}" ${canWrite ? "" : "disabled"}>
+                <input type="text" value="${esc(p.caption || "")}" placeholder="Add caption…" aria-label="Caption for ${esc(p.original_name)}" data-caption-input="${esc(p.id)}" ${canWrite ? "" : "disabled"}>
                 <div class="row">
-                  ${canWrite ? `<button class="btn sm ghost" data-save-caption="${esc(p.id)}" type="button">Save</button>` : ""}
-                  ${canDeletePhoto ? `<button class="btn sm danger" data-delete-photo="${esc(p.id)}" type="button">Remove</button>` : ""}
+                  ${canWrite ? `<button class="btn sm ghost" data-save-caption="${esc(p.id)}" aria-label="Save caption for ${esc(p.original_name)}" type="button">Save</button>` : ""}
+                  ${canDeletePhoto ? `<button class="btn sm danger" data-delete-photo="${esc(p.id)}" aria-label="Remove photo ${esc(p.original_name)}" type="button">Remove</button>` : ""}
                 </div>
               </div>
             `
@@ -1041,19 +1041,32 @@ async function manageEvent(eventId) {
         $("#manageError").textContent = err.message;
       }
     };
+    addDashboardPendingState("editEventForm", "Saving event settings…");
 
     let deleteArmed = false;
-    $("#deleteEventBtn").onclick = async () => {
+    const deleteEventButton = $("#deleteEventBtn");
+    deleteEventButton.onclick = async () => {
       if (!deleteArmed) {
         deleteArmed = true;
-        $("#deleteEventBtn").textContent = "Click again to confirm delete";
+        deleteEventButton.textContent = "Click again to confirm delete";
+        deleteEventButton.setAttribute("aria-label", "Confirm deletion of this event");
         return;
       }
+      if (deleteEventButton.disabled) return;
+      deleteEventButton.disabled = true;
+      deleteEventButton.textContent = "Deleting event…";
+      deleteEventButton.setAttribute("aria-busy", "true");
+      $("#manageError").textContent = "";
       try {
         await api(`/api/events/${encodeURIComponent(eventId)}`, { method: "DELETE" });
         $("#manageDialog").close();
         await loadDashboard();
       } catch (err) {
+        deleteArmed = false;
+        deleteEventButton.disabled = false;
+        deleteEventButton.textContent = "Delete event";
+        deleteEventButton.removeAttribute("aria-label");
+        deleteEventButton.removeAttribute("aria-busy");
         $("#manageError").textContent = err.message;
       }
     };
@@ -1070,8 +1083,14 @@ async function manageEvent(eventId) {
 
   document.querySelectorAll("[data-save-caption]").forEach((btn) => {
     btn.onclick = async () => {
+      if (btn.disabled) return;
       const pid = btn.dataset.saveCaption;
       const input = document.querySelector(`[data-caption-input="${CSS.escape(pid)}"]`);
+      const originalLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+      btn.setAttribute("aria-busy", "true");
+      $("#manageError").textContent = "";
       try {
         await api(`/api/photos/${encodeURIComponent(pid)}`, {
           method: "PATCH",
@@ -1080,6 +1099,12 @@ async function manageEvent(eventId) {
         $("#manageStatus").textContent = "Caption saved.";
       } catch (err) {
         $("#manageError").textContent = err.message;
+      } finally {
+        if (btn.isConnected) {
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+          btn.removeAttribute("aria-busy");
+        }
       }
     };
   });
