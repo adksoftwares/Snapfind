@@ -741,7 +741,7 @@ async function inspectAccount(accountId) {
   });
   addPendingSubmitState("editAccForm", "Saving account changes…");
 }
- 
+
 // Create Account Modal
 function syncCreateRoleFields() {
   const role = $("#caRole").value;
