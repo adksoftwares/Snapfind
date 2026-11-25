@@ -103,7 +103,7 @@
           <label class="inline"><input type="checkbox" name="perm" value="ai:index"> ai:index</label>
         </div>
         <button class="btn sm" type="submit">＋ Add staff member</button>
-        <p id="staffMsg" class="muted"></p>
+        <p id="staffMsg" class="muted" role="status" aria-live="polite"></p>
       </form>
       <div id="staffListWrap" class="table-wrap"></div>
     </section>
@@ -141,6 +141,7 @@
       <div class="privacy-note">
         Security transparency: SnapFind records sign-in timestamps, IP addresses, and device/browser strings so you can identify unfamiliar access and sign out remote sessions.
       </div>
+      <p id="selfSessionsMsg" class="muted" role="status" aria-live="polite"></p>
       <div id="selfSessionsWrap" class="table-wrap"></div>
     </section>
   </main>
