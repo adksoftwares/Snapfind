@@ -238,6 +238,7 @@ $("#disableMfaBtn").onclick = () => {
 async function loadSelfSessions() {
   const wrap = $("#selfSessionsWrap");
   const message = $("#selfSessionsMsg");
+  wrap.setAttribute("aria-busy", "true");
   wrap.innerHTML = '<p class="muted" role="status">Loading active sessions…</p>';
   if (message) {
     message.textContent = "";
@@ -266,6 +267,7 @@ async function loadSelfSessions() {
         </table>`
       : '<p class="muted">No active sessions recorded.</p>';
 
+    wrap.removeAttribute("aria-busy");
     wrap.querySelectorAll("[data-revoke-self-sid]").forEach((btn) => {
       btn.onclick = async () => {
         if (btn.disabled) return;
@@ -294,6 +296,7 @@ async function loadSelfSessions() {
     });
     return true;
   } catch (err) {
+    wrap.removeAttribute("aria-busy");
     wrap.innerHTML = `<div class="empty-card"><p class="error" role="alert">${esc(err.message || "Failed to load active sessions.")}</p><button class="btn sm ghost" type="button" data-retry-self-sessions>Retry</button></div>`;
     const retry = wrap.querySelector("[data-retry-self-sessions]");
     if (retry) retry.onclick = () => loadSelfSessions();
@@ -304,11 +307,17 @@ async function loadSelfSessions() {
 
 async function loadStaff() {
   const wrap = $("#staffListWrap");
+  wrap.setAttribute("aria-busy", "true");
   wrap.innerHTML = '<p class="muted" role="status">Loading team members…</p>';
 
   try {
     const d = await api("/api/studio/staff");
     const staff = Array.isArray(d.staff) ? d.staff : [];
+    const statusMessage = $("#staffMsg");
+    if (statusMessage?.textContent === "Team members could not be loaded.") {
+      statusMessage.textContent = "";
+      statusMessage.className = "muted";
+    }
     wrap.innerHTML = staff.length
       ? `<table>
           <caption class="sr-only">Studio staff members and permissions</caption>
@@ -329,6 +338,7 @@ async function loadStaff() {
         </table>`
       : '<p class="muted">No staff members added yet.</p>';
 
+    wrap.removeAttribute("aria-busy");
     wrap.querySelectorAll("[data-toggle-staff]").forEach((btn) => {
       btn.onclick = async () => {
         if (btn.disabled) return;
@@ -364,7 +374,6 @@ async function loadStaff() {
         if (!armed) {
           armed = true;
           btn.textContent = "Confirm remove?";
-          btn.setAttribute("aria-pressed", "true");
           return;
         }
         if (btn.disabled) return;
@@ -387,7 +396,6 @@ async function loadStaff() {
           armed = false;
           btn.disabled = false;
           btn.textContent = "Remove";
-          btn.removeAttribute("aria-pressed");
           btn.removeAttribute("aria-busy");
           setStatusMsg("#staffMsg", err.message, true);
         }
@@ -395,6 +403,7 @@ async function loadStaff() {
     });
     return true;
   } catch (err) {
+    wrap.removeAttribute("aria-busy");
     wrap.innerHTML = `<div class="empty-card"><p class="error" role="alert">${esc(err.message || "Failed to load team members.")}</p><button class="btn sm ghost" type="button" data-retry-staff>Retry</button></div>`;
     const retry = wrap.querySelector("[data-retry-staff]");
     if (retry) retry.onclick = () => loadStaff();
