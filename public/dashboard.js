@@ -10,6 +10,7 @@ let eventLibraryQuery = "";
 let indexingAbort = false;
 let dashboardLoadSequence = 0;
 let manageEventRequestSequence = 0;
+let indexingRunSequence = 0;
 
 function esc(value = "") {
   return String(value).replace(/[&<>"']/g, (c) => ({
@@ -631,12 +632,17 @@ async function loadDashboard() {
   }
 }
 
-async function manageEvent(eventId) {
+async function manageEvent(eventId, options = {}) {
+  const sameOpenEvent = currentEventId === eventId && $("#manageDialog").open;
   const requestId = ++manageEventRequestSequence;
+  if (!sameOpenEvent) {
+    indexingAbort = true;
+    indexingRunSequence += 1;
+  }
   currentEventId = eventId;
-  indexingAbort = false;
   const data = await api(`/api/events/${encodeURIComponent(eventId)}`);
   if (requestId !== manageEventRequestSequence) return false;
+  if (!sameOpenEvent) indexingAbort = false;
   const e = data.event;
   const canWrite = hasPerm("events:write");
   const canUpload = hasPerm("photos:upload");
@@ -1262,7 +1268,7 @@ async function manageEvent(eventId) {
     };
   }
 
-  if (e.ai_enabled && canAiIndex && unindexedOnOpen > 0) {
+  if (!options.suppressAutoIndex && e.ai_enabled && canAiIndex && unindexedOnOpen > 0) {
     runStudioFaceIndexing(eventId, data.photos, false);
   }
 }
@@ -1273,12 +1279,13 @@ async function runStudioFaceIndexing(eventId, photos, forceReindex = false) {
     return;
   }
 
+  const runId = ++indexingRunSequence;
   indexingAbort = false;
   const targets = forceReindex ? photos : photos.filter((p) => !p.face_indexed);
   $("#dynamicPanel").innerHTML = `
     <div class="panel-box">
       <h3>AI Face Indexing</h3>
-      <p class="muted" id="indexProgress">Loading self-hosted face models…</p>
+      <p class="muted" id="indexProgress" role="status" aria-live="polite">Loading self-hosted face models…</p>
       <div class="manage-actions">
         <button class="btn sm ghost" id="cancelIndexBtn" type="button">Cancel</button>
         <button class="btn sm ghost" id="reindexAllBtn" type="button">Re-index all photos (${photos.length})</button>
@@ -1288,27 +1295,72 @@ async function runStudioFaceIndexing(eventId, photos, forceReindex = false) {
   `;
 
   $("#cancelIndexBtn").onclick = () => {
+    if (runId !== indexingRunSequence || indexingAbort) return;
     indexingAbort = true;
-    $("#indexProgress").textContent = "Indexing cancelled.";
+    const button = $("#cancelIndexBtn");
+    button.disabled = true;
+    button.textContent = "Stopping…";
+    button.setAttribute("aria-busy", "true");
+    $("#indexProgress").textContent = "Stopping after any in-flight face operation…";
   };
 
   $("#reindexAllBtn").onclick = async () => {
+    if (runId !== indexingRunSequence) return;
+    indexingAbort = true;
+    const resetRunId = ++indexingRunSequence;
+    const controls = [$("#cancelIndexBtn"), $("#reindexAllBtn"), $("#clearIndexBtn")].filter(Boolean);
+    const labels = controls.map((button) => button.textContent);
+    controls.forEach((button) => {
+      button.disabled = true;
+      button.setAttribute("aria-busy", "true");
+    });
     try {
-      $("#indexProgress").textContent = "Resetting existing index and scanning all faces…";
+      $("#indexProgress").textContent = "Resetting existing index and preparing a fresh scan…";
       await api(`/api/events/${encodeURIComponent(eventId)}/faces`, { method: "DELETE" });
+      if (resetRunId !== indexingRunSequence) return;
       await runStudioFaceIndexing(eventId, photos.map((p) => ({ ...p, face_indexed: 0 })), true);
     } catch (err) {
-      $("#manageError").textContent = err.message;
+      if (resetRunId === indexingRunSequence) {
+        $("#manageError").textContent = err.message;
+        controls.forEach((button, index) => {
+          if (!button.isConnected) return;
+          button.disabled = false;
+          button.textContent = labels[index];
+          button.removeAttribute("aria-busy");
+        });
+      }
     }
   };
 
   $("#clearIndexBtn").onclick = async () => {
+    if (runId !== indexingRunSequence) return;
+    indexingAbort = true;
+    const clearRunId = ++indexingRunSequence;
+    const controls = [$("#cancelIndexBtn"), $("#reindexAllBtn"), $("#clearIndexBtn")].filter(Boolean);
+    const labels = controls.map((button) => button.textContent);
+    controls.forEach((button) => {
+      button.disabled = true;
+      button.setAttribute("aria-busy", "true");
+    });
     try {
+      $("#indexProgress").textContent = "Clearing the saved AI index…";
       await api(`/api/events/${encodeURIComponent(eventId)}/faces`, { method: "DELETE" });
+      if (clearRunId !== indexingRunSequence) return;
       await loadDashboard();
-      await manageEvent(eventId);
+      if (clearRunId !== indexingRunSequence) return;
+      await manageEvent(eventId, { suppressAutoIndex: true });
+      if (clearRunId !== indexingRunSequence) return;
+      $("#manageStatus").textContent = "AI face index cleared. It will stay cleared until you choose to re-index.";
     } catch (err) {
-      $("#manageError").textContent = err.message;
+      if (clearRunId === indexingRunSequence) {
+        $("#manageError").textContent = err.message;
+        controls.forEach((button, index) => {
+          if (!button.isConnected) return;
+          button.disabled = false;
+          button.textContent = labels[index];
+          button.removeAttribute("aria-busy");
+        });
+      }
     }
   };
 
@@ -1323,10 +1375,11 @@ async function runStudioFaceIndexing(eventId, photos, forceReindex = false) {
     const batch = [];
     let totalFacesFound = 0;
     for (let i = 0; i < targets.length; i++) {
-      if (indexingAbort) return;
+      if (indexingAbort || runId !== indexingRunSequence) return;
       const p = targets[i];
       $("#indexProgress").textContent = `Analysing faces in photo ${i + 1} of ${targets.length} (${p.original_name})…`;
       const result = await window.SnapFindFace.extractEventFaces(p.preview_url);
+      if (indexingAbort || runId !== indexingRunSequence) return;
       totalFacesFound += result.faceCount;
 
       batch.push({
@@ -1340,13 +1393,30 @@ async function runStudioFaceIndexing(eventId, photos, forceReindex = false) {
           method: "POST",
           body: JSON.stringify({ entries }),
         });
+        if (indexingAbort || runId !== indexingRunSequence) return;
       }
     }
 
-    await Promise.all([loadDashboard(), manageEvent(eventId)]);
+    await loadDashboard();
+    if (indexingAbort || runId !== indexingRunSequence) return;
+    await manageEvent(eventId, { suppressAutoIndex: true });
+    if (indexingAbort || runId !== indexingRunSequence) return;
     $("#manageStatus").textContent = `Face indexing complete (${totalFacesFound} faces detected across ${targets.length} photo(s)).`;
   } catch (err) {
-    $("#manageError").textContent = err.message || "Face indexing failed";
+    if (!indexingAbort && runId === indexingRunSequence) {
+      $("#manageError").textContent = err.message || "Face indexing failed";
+    }
+  } finally {
+    if (indexingAbort && runId === indexingRunSequence) {
+      const progress = $("#indexProgress");
+      if (progress) progress.textContent = "Indexing stopped. You can re-index whenever you're ready.";
+      const cancelButton = $("#cancelIndexBtn");
+      if (cancelButton) {
+        cancelButton.disabled = true;
+        cancelButton.textContent = "Stopped";
+        cancelButton.removeAttribute("aria-busy");
+      }
+    }
   }
 }
 
