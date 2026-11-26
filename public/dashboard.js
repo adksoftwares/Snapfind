@@ -1322,10 +1322,10 @@ async function runStudioFaceIndexing(eventId, photos, forceReindex = false) {
     } catch (err) {
       if (resetRunId === indexingRunSequence) {
         $("#manageError").textContent = err.message;
-        controls.forEach((button, index) => {
+        $("#indexProgress").textContent = "Re-index could not start. Close and reopen this event before trying again.";
+        controls.forEach((button) => {
           if (!button.isConnected) return;
-          button.disabled = false;
-          button.textContent = labels[index];
+          button.disabled = true;
           button.removeAttribute("aria-busy");
         });
       }
@@ -1354,10 +1354,10 @@ async function runStudioFaceIndexing(eventId, photos, forceReindex = false) {
     } catch (err) {
       if (clearRunId === indexingRunSequence) {
         $("#manageError").textContent = err.message;
-        controls.forEach((button, index) => {
+        $("#indexProgress").textContent = "The index could not be cleared. Close and reopen this event before trying again.";
+        controls.forEach((button) => {
           if (!button.isConnected) return;
-          button.disabled = false;
-          button.textContent = labels[index];
+          button.disabled = true;
           button.removeAttribute("aria-busy");
         });
       }
@@ -1424,6 +1424,7 @@ async function runStudioFaceIndexing(eventId, photos, forceReindex = false) {
 
 $("#manageDialog").addEventListener("close", () => {
   manageEventRequestSequence += 1;
+  indexingRunSequence += 1;
   indexingAbort = true;
 });
 
