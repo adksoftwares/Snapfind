@@ -52,6 +52,7 @@ async function api(url, options = {}) {
   if (!response.ok) {
     const err = new Error(data.error || "Request failed");
     err.code = data.code;
+    err.status = response.status;
     throw err;
   }
   return data;
@@ -605,6 +606,10 @@ async function loadDashboard() {
   } catch (err) {
     if (requestId !== dashboardLoadSequence) return false;
     eventList.removeAttribute("aria-busy");
+    if (err.status === 401) {
+      location.href = "/";
+      return false;
+    }
     const message = err.message || "Your events could not be loaded.";
     if (events.length) {
       if (summary) {
