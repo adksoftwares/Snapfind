@@ -11,6 +11,7 @@ let indexingAbort = false;
 let dashboardLoadSequence = 0;
 let manageEventRequestSequence = 0;
 let indexingRunSequence = 0;
+let indexingSavePromise = null;
 
 function esc(value = "") {
   return String(value).replace(/[&<>"']/g, (c) => ({
@@ -1314,7 +1315,9 @@ async function runStudioFaceIndexing(eventId, photos, forceReindex = false) {
       button.setAttribute("aria-busy", "true");
     });
     try {
-      $("#indexProgress").textContent = "Resetting existing index and preparing a fresh scan…";
+      $("#indexProgress").textContent = "Waiting for the current save, then preparing a fresh scan…";
+      if (indexingSavePromise) await indexingSavePromise.catch(() => {});
+      if (resetRunId !== indexingRunSequence) return;
       await api(`/api/events/${encodeURIComponent(eventId)}/faces`, { method: "DELETE" });
       if (resetRunId !== indexingRunSequence) return;
       await runStudioFaceIndexing(eventId, photos.map((p) => ({ ...p, face_indexed: 0 })), true);
@@ -1342,7 +1345,9 @@ async function runStudioFaceIndexing(eventId, photos, forceReindex = false) {
       button.setAttribute("aria-busy", "true");
     });
     try {
-      $("#indexProgress").textContent = "Clearing the saved AI index…";
+      $("#indexProgress").textContent = "Waiting for the current save, then clearing the AI index…";
+      if (indexingSavePromise) await indexingSavePromise.catch(() => {});
+      if (clearRunId !== indexingRunSequence) return;
       await api(`/api/events/${encodeURIComponent(eventId)}/faces`, { method: "DELETE" });
       if (clearRunId !== indexingRunSequence) return;
       await loadDashboard();
@@ -1371,7 +1376,10 @@ async function runStudioFaceIndexing(eventId, photos, forceReindex = false) {
   }
 
   try {
+    if (indexingSavePromise) await indexingSavePromise.catch(() => {});
+    if (indexingAbort || runId !== indexingRunSequence) return;
     await window.SnapFindFace.loadFaceModels();
+    if (indexingAbort || runId !== indexingRunSequence) return;
 
     const batch = [];
     let totalFacesFound = 0;
@@ -1390,10 +1398,16 @@ async function runStudioFaceIndexing(eventId, photos, forceReindex = false) {
 
       if (batch.length >= 10 || i === targets.length - 1) {
         const entries = batch.splice(0, batch.length);
-        await api(`/api/events/${encodeURIComponent(eventId)}/faces`, {
+        const savePromise = api(`/api/events/${encodeURIComponent(eventId)}/faces`, {
           method: "POST",
           body: JSON.stringify({ entries }),
         });
+        indexingSavePromise = savePromise;
+        try {
+          await savePromise;
+        } finally {
+          if (indexingSavePromise === savePromise) indexingSavePromise = null;
+        }
         if (indexingAbort || runId !== indexingRunSequence) return;
       }
     }
