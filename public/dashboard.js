@@ -8,6 +8,8 @@ let events = [];
 let eventLibraryFilter = "all";
 let eventLibraryQuery = "";
 let indexingAbort = false;
+let dashboardLoadSequence = 0;
+let manageEventRequestSequence = 0;
 
 function esc(value = "") {
   return String(value).replace(/[&<>"']/g, (c) => ({
@@ -513,7 +515,19 @@ function renderDashboardEvents() {
 
   document.querySelectorAll("[data-manage]").forEach((btn) => {
     btn.onclick = () => {
-      manageEvent(btn.dataset.manage).catch((err) => showToast(err.message));
+      if (btn.disabled) return;
+      const originalLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Opening…";
+      btn.setAttribute("aria-busy", "true");
+      manageEvent(btn.dataset.manage)
+        .catch((err) => showToast(err.message))
+        .finally(() => {
+          if (!btn.isConnected) return;
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+          btn.removeAttribute("aria-busy");
+        });
     };
   });
 }
@@ -560,27 +574,64 @@ window.addEventListener("keydown", (event) => {
 });
 
 async function loadDashboard() {
-  const data = await api("/api/dashboard");
-  events = data.events;
-  $("#statEvents").textContent = data.totals.events;
-  $("#statPhotos").textContent = data.totals.photos;
-  $("#statSelections").textContent = data.totals.selections;
+  const requestId = ++dashboardLoadSequence;
+  const eventList = $("#eventList");
+  const summary = $("#eventLibrarySummary");
+  eventList.setAttribute("aria-busy", "true");
+  if (!events.length) {
+    eventList.innerHTML = '<p class="muted" role="status" aria-live="polite">Loading your events…</p>';
+  } else if (summary) {
+    summary.textContent = "Refreshing your event library…";
+  }
 
-  const used = data.storage?.used_bytes || 0;
-  const limit = data.storage?.limit_bytes || 1;
-  const pct = Math.min(100, Math.round((used / limit) * 100));
-  $("#statStorage").textContent = formatMb(used);
-  $("#statStorageLimit").textContent = `of ${Math.round(limit / (1024 * 1024))} MB limit`;
-  $("#storageProgress").value = pct;
+  try {
+    const data = await api("/api/dashboard");
+    if (requestId !== dashboardLoadSequence) return false;
+    events = Array.isArray(data.events) ? data.events : [];
+    $("#statEvents").textContent = data.totals.events;
+    $("#statPhotos").textContent = data.totals.photos;
+    $("#statSelections").textContent = data.totals.selections;
 
-  renderDashboardEvents();
+    const used = data.storage?.used_bytes || 0;
+    const limit = data.storage?.limit_bytes || 1;
+    const pct = Math.min(100, Math.round((used / limit) * 100));
+    $("#statStorage").textContent = formatMb(used);
+    $("#statStorageLimit").textContent = `of ${Math.round(limit / (1024 * 1024))} MB limit`;
+    $("#storageProgress").value = pct;
 
+    eventList.removeAttribute("aria-busy");
+    renderDashboardEvents();
+    return true;
+  } catch (err) {
+    if (requestId !== dashboardLoadSequence) return false;
+    eventList.removeAttribute("aria-busy");
+    const message = err.message || "Your events could not be loaded.";
+    if (events.length) {
+      if (summary) {
+        summary.textContent = `Could not refresh events: ${message} Showing the last loaded list.`;
+        const retry = document.createElement("button");
+        retry.type = "button";
+        retry.className = "btn sm ghost";
+        retry.textContent = "Retry";
+        retry.onclick = () => loadDashboard();
+        summary.append(" ", retry);
+      }
+    } else {
+      eventList.innerHTML = `<div class="empty-card"><p class="error" role="alert">${esc(message)}</p><button class="btn sm ghost" type="button" data-retry-dashboard>Retry loading events</button></div>`;
+      const retry = eventList.querySelector("[data-retry-dashboard]");
+      if (retry) retry.onclick = () => loadDashboard();
+      if (summary) summary.textContent = "The event library is temporarily unavailable.";
+    }
+    return false;
+  }
 }
 
 async function manageEvent(eventId) {
+  const requestId = ++manageEventRequestSequence;
   currentEventId = eventId;
   indexingAbort = false;
   const data = await api(`/api/events/${encodeURIComponent(eventId)}`);
+  if (requestId !== manageEventRequestSequence) return false;
   const e = data.event;
   const canWrite = hasPerm("events:write");
   const canUpload = hasPerm("photos:upload");
@@ -1293,6 +1344,11 @@ async function runStudioFaceIndexing(eventId, photos, forceReindex = false) {
     $("#manageError").textContent = err.message || "Face indexing failed";
   }
 }
+
+$("#manageDialog").addEventListener("close", () => {
+  manageEventRequestSequence += 1;
+  indexingAbort = true;
+});
 
 $("#newEvent").onclick = () => {
   $("#eventError").textContent = "";
