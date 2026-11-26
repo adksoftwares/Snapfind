@@ -31,7 +31,27 @@ async function api(url, options = {}) {
   return data;
 }
 
+let csrfRequest = null;
+let authRequestPending = false;
+
+async function ensureCsrfToken() {
+  if (csrfToken) return csrfToken;
+  if (!csrfRequest) {
+    csrfRequest = api("/api/auth/csrf")
+      .then((data) => {
+        if (!data?.csrfToken) throw new Error("Could not prepare secure sign-in. Please try again.");
+        csrfToken = data.csrfToken;
+        return csrfToken;
+      })
+      .finally(() => {
+        csrfRequest = null;
+      });
+  }
+  return csrfRequest;
+}
+
 function openAuthDialog(nextMode) {
+  if (authRequestPending && nextMode !== "mfa") return;
   mode = nextMode;
   const isRegister = nextMode === "register";
   const isMfa = nextMode === "mfa";
@@ -73,13 +93,7 @@ function openAuthDialog(nextMode) {
     : 'New to SnapFind? <a href="#">Create account</a>';
   $("#authError").textContent = "";
   if (!$("#authDialog").open) $("#authDialog").showModal();
-  if (!csrfToken) {
-    api("/api/auth/csrf")
-      .then((c) => {
-        if (c?.csrfToken) csrfToken = c.csrfToken;
-      })
-      .catch(() => {});
-  }
+  if (!csrfToken) ensureCsrfToken().catch(() => {});
 }
 
 $("#loginOpen").onclick = () => openAuthDialog("login");
@@ -96,15 +110,25 @@ $("#authSwitch").onclick = (e) => {
 
 $("#authForm").onsubmit = async (e) => {
   e.preventDefault();
+  if (authRequestPending) return;
+
+  const submitButton = $("#authSubmit");
+  const originalLabel = submitButton.textContent;
+  const submittingMode = mode;
+  authRequestPending = true;
+  submitButton.disabled = true;
+  submitButton.textContent = submittingMode === "mfa"
+    ? "Verifying…"
+    : submittingMode === "register" ? "Creating workspace…" : "Signing in…";
+  submitButton.setAttribute("aria-busy", "true");
+  $("#authSwitch a")?.setAttribute("aria-disabled", "true");
   $("#authError").textContent = "";
-  if (!csrfToken) {
-    const c = await api("/api/auth/csrf").catch(() => null);
-    if (c?.csrfToken) csrfToken = c.csrfToken;
-  }
-  const formData = new FormData(e.target);
-  const payload = Object.fromEntries(formData);
+
   try {
-    if (mode === "mfa") {
+    await ensureCsrfToken();
+    const payload = Object.fromEntries(new FormData(e.target));
+
+    if (submittingMode === "mfa") {
       const mfaRes = await api("/api/auth/mfa/verify", {
         method: "POST",
         body: JSON.stringify({ code: payload.mfa_code }),
@@ -114,7 +138,7 @@ $("#authForm").onsubmit = async (e) => {
       return;
     }
 
-    const res = await api(`/api/auth/${mode === "login" ? "login" : "register"}`, {
+    const res = await api(`/api/auth/${submittingMode === "login" ? "login" : "register"}`, {
       method: "POST",
       body: JSON.stringify(payload),
     });
@@ -126,7 +150,13 @@ $("#authForm").onsubmit = async (e) => {
     location.href =
       res.user?.role === "super_admin" ? "/super-admin.html" : "/dashboard.html";
   } catch (err) {
-    $("#authError").textContent = err.message;
+    $("#authError").textContent = err.message || "Authentication could not be completed.";
+  } finally {
+    authRequestPending = false;
+    submitButton.disabled = false;
+    submitButton.removeAttribute("aria-busy");
+    $("#authSwitch a")?.removeAttribute("aria-disabled");
+    if (mode === submittingMode) submitButton.textContent = originalLabel;
   }
 };
 

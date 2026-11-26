@@ -161,7 +161,7 @@
     </footer>
   </main>
 
-  <dialog id="authDialog">
+  <dialog id="authDialog" aria-labelledby="authTitle">
     <form id="authForm">
       <button type="button" class="close" id="authClose" aria-label="Close">×</button>
       <p class="eyebrow" id="authEyebrow">YOUR WORKSPACE</p>
@@ -195,7 +195,7 @@
       <button class="btn full" id="authSubmit" type="submit">Sign in</button>
       <p id="authForgot" class="switch"><a href="/reset-password.html">Forgot password?</a></p>
       <p id="authSwitch" class="switch">New to SnapFind? <a href="#">Create account</a></p>
-      <p id="authError" class="error"></p>
+      <p id="authError" class="error" role="alert" aria-live="assertive"></p>
     </form>
   </dialog>
 
