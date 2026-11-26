@@ -400,6 +400,8 @@ async function selectPhoto(photoId) {
 function openLightbox(photoId) {
   const photo = photos.find((p) => p.id === photoId);
   if (!photo) return;
+  const dialog = $("#lightboxDialog");
+  const focusedControlId = dialog.open ? document.activeElement?.id : null;
   lightboxPhotoId = photo.id;
   const isFav = favouritedSet.has(photo.id);
   const isSel = selectedSet.has(photo.id);
@@ -408,12 +410,12 @@ function openLightbox(photoId) {
     <img class="lightbox-img" src="${esc(photo.preview_url)}" alt="${esc(photo.caption || photo.original_name)}">
     <div class="lightbox-bar">
       <div>
-        <b>${esc(photo.caption || photo.original_name || "Event moment")}</b>
+        <b id="lightboxDialogTitle">${esc(photo.caption || photo.original_name || "Event moment")}</b>
         <p class="muted">${photo.width && photo.height ? `${photo.width} × ${photo.height}px` : ""}</p>
       </div>
       <div class="gallery-actions lightbox-nav-actions">
         <button class="btn sm ghost" id="lbPrev" type="button" aria-label="Previous photo">← Previous</button>
-        <span class="lightbox-position" id="lbPosition"></span>
+        <span class="lightbox-position" id="lbPosition" aria-live="polite" aria-atomic="true"></span>
         <button class="btn sm ghost" id="lbNext" type="button" aria-label="Next photo">Next →</button>
         <button class="btn sm ghost" id="lbFav" type="button" ${pendingFavouriteIds.has(photo.id) ? 'disabled aria-busy="true"' : ""}>${pendingFavouriteIds.has(photo.id) ? "Saving…" : isFav ? "♥ Favourited" : "♡ Favourite"}</button>
         <button class="btn sm ghost" id="lbSelect" type="button" ${isSel || pendingSelectionIds.has(photo.id) ? "disabled" : ""} ${pendingSelectionIds.has(photo.id) ? 'aria-busy="true"' : ""}>${pendingSelectionIds.has(photo.id) ? "Sending…" : isSel ? "✓ Selected" : "Request / Select"}</button>
@@ -439,8 +441,12 @@ function openLightbox(photoId) {
     openLightbox(photo.id);
   };
 
-  if (!$("#lightboxDialog").open) {
-    $("#lightboxDialog").showModal();
+  if (!dialog.open) {
+    dialog.showModal();
+  } else if (["lbPrev", "lbNext", "lbFav", "lbSelect"].includes(focusedControlId)) {
+    document.getElementById(focusedControlId)?.focus();
+  } else {
+    $("#lightboxClose").focus();
   }
 }
 
@@ -757,24 +763,31 @@ $("#guestDownloadSelectedBtn").onclick = async () => {
     const results = new Array(picked.length);
     let cursor = 0;
 
+    let downloadFailure = null;
     async function worker() {
-      while (cursor < picked.length) {
+      while (cursor < picked.length && !downloadFailure) {
         const idx = cursor++;
         const photo = picked[idx];
-        const res = await fetch(downloadUrl(photo.url), { credentials: "same-origin" });
-        if (!res.ok) throw new Error(`Failed to fetch ${photo.original_name || "photo"}`);
-        const buf = new Uint8Array(await res.arrayBuffer());
-        results[idx] = {
-          name: uniqueFilename(photo.original_name || `${photo.id}.jpg`, usedNames),
-          bytes: buf,
-        };
-        completed += 1;
-        btn.textContent = `Preparing ZIP (${completed}/${picked.length})…`;
-        $("#guestBulkStatus").textContent = `Downloaded ${completed} of ${picked.length} photos into the archive.`;
+        try {
+          const res = await fetch(downloadUrl(photo.url), { credentials: "same-origin" });
+          if (!res.ok) throw new Error(`Failed to fetch ${photo.original_name || "photo"}`);
+          const buf = new Uint8Array(await res.arrayBuffer());
+          results[idx] = {
+            name: uniqueFilename(photo.original_name || `${photo.id}.jpg`, usedNames),
+            bytes: buf,
+          };
+          completed += 1;
+          btn.textContent = `Preparing ZIP (${completed}/${picked.length})…`;
+          $("#guestBulkStatus").textContent = `Downloaded ${completed} of ${picked.length} photos into the archive.`;
+        } catch (err) {
+          downloadFailure = downloadFailure || err;
+        }
       }
     }
 
-    await Promise.all([worker(), worker(), worker()]);
+    // Wait for every in-flight request to settle before restoring the controls.
+    await Promise.all(Array.from({ length: Math.min(3, picked.length) }, () => worker()));
+    if (downloadFailure) throw downloadFailure;
     const zipBlob = buildZipBlob(results.filter(Boolean));
     const safeTitle = String(currentEvent?.title || code || "snapfind")
       .toLowerCase()
