@@ -1309,7 +1309,6 @@ async function runStudioFaceIndexing(eventId, photos, forceReindex = false) {
     indexingAbort = true;
     const resetRunId = ++indexingRunSequence;
     const controls = [$("#cancelIndexBtn"), $("#reindexAllBtn"), $("#clearIndexBtn")].filter(Boolean);
-    const labels = controls.map((button) => button.textContent);
     controls.forEach((button) => {
       button.disabled = true;
       button.setAttribute("aria-busy", "true");
