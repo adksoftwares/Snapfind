@@ -1365,6 +1365,8 @@ async function runStudioFaceIndexing(eventId, photos, forceReindex = false) {
   };
 
   if (!targets.length) {
+    $("#cancelIndexBtn").disabled = true;
+    $("#cancelIndexBtn").classList.add("hidden");
     $("#indexProgress").textContent = "All uploaded photos in this event are already indexed. Use Re-index all photos to refresh with multi-angle detection.";
     return;
   }
