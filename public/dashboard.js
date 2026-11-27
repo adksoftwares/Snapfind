@@ -686,6 +686,8 @@ async function loadDashboard() {
 
 async function manageEvent(eventId, options = {}) {
   const sameOpenEvent = currentEventId === eventId && $("#manageDialog").open;
+  const previousManageFocusId = sameOpenEvent ? document.activeElement?.id || "" : "";
+  const previousManagePhotoQuery = sameOpenEvent ? $("#managePhotoSearch")?.value || "" : "";
   const requestId = ++manageEventRequestSequence;
   if (!sameOpenEvent) {
     indexingAbort = true;
@@ -715,7 +717,7 @@ async function manageEvent(eventId, options = {}) {
       </p>
 
       <div class="manage-actions">
-        <button class="btn ghost" id="qrBtn" type="button">Generate QR</button>
+        <button class="btn ghost" id="qrBtn" type="button" aria-controls="dynamicPanel" aria-pressed="false">Generate QR</button>
         ${
           canUpload
             ? `<label class="btn ghost upload-btn" for="photoUpload">
@@ -726,17 +728,17 @@ async function manageEvent(eventId, options = {}) {
         }
         ${
           canSelections
-            ? `<button class="btn ghost" id="selectionBtn" type="button">Selections (${data.stats.selections})</button>`
+            ? `<button class="btn ghost" id="selectionBtn" type="button" aria-controls="dynamicPanel" aria-pressed="false">Selections (${data.stats.selections})</button>`
             : ""
         }
         ${
           canWrite
-            ? `<button class="btn ghost" id="editToggleBtn" type="button">Event settings</button>`
+            ? `<button class="btn ghost" id="editToggleBtn" type="button" aria-controls="editEventBox" aria-expanded="false" aria-pressed="false">Event settings</button>`
             : ""
         }
         ${
           e.ai_enabled && canAiIndex
-            ? `<button class="btn ghost" id="indexFacesBtn" type="button">Index faces (${data.stats.indexed_faces})</button>`
+            ? `<button class="btn ghost" id="indexFacesBtn" type="button" aria-controls="dynamicPanel" aria-pressed="false">Index faces (${data.stats.indexed_faces})</button>`
             : ""
         }
         <a class="btn ghost" target="_blank" href="/gallery/${encodeURIComponent(e.access_code)}">Open gallery ↗</a>
@@ -757,7 +759,7 @@ async function manageEvent(eventId, options = {}) {
     <p id="manageStatus" class="muted" role="status" aria-live="polite"></p>
     <progress id="uploadProgress" class="upload-progress hidden" max="100" value="0" aria-label="Photo upload progress"></progress>
     <p id="manageError" class="error" role="alert"></p>
-    <div id="dynamicPanel"></div>
+    <div id="dynamicPanel" aria-live="polite"></div>
 
     ${
       canWrite
@@ -847,6 +849,7 @@ async function manageEvent(eventId, options = {}) {
 
   const managePhotoSearch = $("#managePhotoSearch");
   if (managePhotoSearch) {
+    managePhotoSearch.value = previousManagePhotoQuery;
     const photoCards = [...document.querySelectorAll(".manage-photo-card")];
     const count = $("#managePhotoSearchCount");
     const applyPhotoSearch = () => {
@@ -872,6 +875,7 @@ async function manageEvent(eventId, options = {}) {
       } else if (empty) empty.remove();
     };
     managePhotoSearch.addEventListener("input", applyPhotoSearch);
+    if (previousManagePhotoQuery) applyPhotoSearch();
   }
 
   if (!$("#manageDialog").open) {
@@ -891,9 +895,13 @@ async function manageEvent(eventId, options = {}) {
   let activeManageTab = "";
   function setActiveManageTab(tabId) {
     activeManageTab = tabId;
-    $$(".manage-actions .btn").forEach((btn) => {
-      btn.classList.toggle("is-active-tab", Boolean(tabId) && btn.id === tabId);
+    document.querySelectorAll(".manage-sticky-head .manage-actions button").forEach((btn) => {
+      const active = Boolean(tabId) && btn.id === tabId;
+      btn.classList.toggle("is-active-tab", active);
+      btn.setAttribute("aria-pressed", String(active));
     });
+    const editToggle = $("#editToggleBtn");
+    if (editToggle) editToggle.setAttribute("aria-expanded", String(tabId === "editToggleBtn"));
   }
 
   if ($("#editToggleBtn")) {
@@ -1318,6 +1326,13 @@ async function manageEvent(eventId, options = {}) {
         bulkBtn.textContent = `Delete selected (${photoIds.length})`;
       }
     };
+  }
+
+  if (sameOpenEvent && previousManageFocusId) {
+    const focusTarget = document.getElementById(previousManageFocusId);
+    if (focusTarget && !focusTarget.disabled && !focusTarget.closest(".hidden")) {
+      focusTarget.focus({ preventScroll: true });
+    }
   }
 
   if (!options.suppressAutoIndex && e.ai_enabled && canAiIndex && unindexedOnOpen > 0) {
