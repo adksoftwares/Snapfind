@@ -24,6 +24,8 @@ let capturedSelfieBlob = null;
 let faceMatchRequest = null;
 let selfiePreviewObjectUrl = null;
 let cameraStream = null;
+let cameraRequestSequence = 0;
+let cameraRequestPending = false;
 let favouritedSet = new Set();
 let selectedSet = new Set();
 let activeFilter = "all";
@@ -685,13 +687,22 @@ $("#nextPage").onclick = () => {
 };
 
 function stopCamera() {
+  cameraRequestSequence += 1;
+  cameraRequestPending = false;
   if (cameraStream) {
-    cameraStream.getTracks().forEach((t) => t.stop());
+    cameraStream.getTracks().forEach((track) => track.stop());
     cameraStream = null;
   }
   const video = $("#selfieVideo");
   if (video) video.srcObject = null;
   $("#cameraBox")?.classList.add("hidden");
+  const cameraButton = $("#aiCameraBtn");
+  if (cameraButton) {
+    cameraButton.textContent = "Use camera";
+    cameraButton.disabled = !$("#aiConsent")?.checked;
+    cameraButton.removeAttribute("aria-busy");
+    cameraButton.setAttribute("aria-expanded", "false");
+  }
 }
 
 function showSelfiePreview(blobOrFile, label, sub = "Analysed locally on your device — never uploaded.") {
@@ -885,29 +896,86 @@ $("#selfie").onchange = (e) => {
 };
 
 $("#aiCameraBtn").onclick = async () => {
+  const cameraButton = $("#aiCameraBtn");
+  if (cameraRequestPending) {
+    stopCamera();
+    $("#aiStatus").textContent = "Camera request cancelled. You can upload a selfie instead.";
+    return;
+  }
   $("#aiStatus").textContent = "";
   if (!navigator.mediaDevices?.getUserMedia) {
     $("#aiStatus").textContent = "Live camera is unavailable in this browser. Please upload a selfie photo instead.";
     return;
   }
+
+  stopCamera();
+  const requestId = cameraRequestSequence;
+  cameraRequestPending = true;
+  cameraButton.textContent = "Cancel camera request";
+  cameraButton.setAttribute("aria-busy", "true");
+  $("#aiStatus").textContent = "Waiting for camera permission… You can cancel this request.";
+
   try {
-    stopCamera();
-    cameraStream = await navigator.mediaDevices.getUserMedia({
+    const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: "user", width: { ideal: 960 }, height: { ideal: 720 } },
       audio: false,
     });
+    if (
+      requestId !== cameraRequestSequence ||
+      !$("#aiConsent").checked ||
+      document.visibilityState === "hidden"
+    ) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+
+    cameraStream = stream;
+    cameraRequestPending = false;
     const video = $("#selfieVideo");
-    video.srcObject = cameraStream;
+    video.srcObject = stream;
     $("#cameraBox").classList.remove("hidden");
+    cameraButton.textContent = "Use camera";
+    cameraButton.removeAttribute("aria-busy");
+    cameraButton.setAttribute("aria-expanded", "true");
+    stream.getVideoTracks().forEach((track) => {
+      track.addEventListener("ended", () => {
+        if (cameraStream !== stream) return;
+        stopCamera();
+        $("#aiStatus").textContent = "The camera connection ended. You can reopen it or upload a selfie.";
+      }, { once: true });
+    });
     $("#aiStatus").textContent = "Look at the camera in good light and tap Capture selfie.";
+    $("#captureSelfieBtn").focus();
   } catch (err) {
-    $("#aiStatus").textContent = err?.message || "Camera permission denied. Upload a selfie photo instead.";
+    if (requestId === cameraRequestSequence) {
+      cameraRequestPending = false;
+      cameraButton.textContent = "Use camera";
+      cameraButton.removeAttribute("aria-busy");
+      cameraButton.setAttribute("aria-expanded", "false");
+      $("#aiStatus").textContent = err?.message || "Camera permission denied. Upload a selfie photo instead.";
+    }
   }
 };
 
 $("#closeCameraBtn").onclick = () => {
   stopCamera();
+  $("#aiCameraBtn").focus();
 };
+
+window.addEventListener("pagehide", () => {
+  stopCamera();
+  if (selfiePreviewObjectUrl) {
+    URL.revokeObjectURL(selfiePreviewObjectUrl);
+    selfiePreviewObjectUrl = null;
+  }
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden" && (cameraStream || cameraRequestPending)) {
+    stopCamera();
+    $("#aiStatus").textContent = "Camera stopped while this gallery was in the background. Reopen it when you return.";
+  }
+});
 
 $("#captureSelfieBtn").onclick = async () => {
   const video = $("#selfieVideo");
@@ -927,6 +995,7 @@ $("#captureSelfieBtn").onclick = async () => {
   stopCamera();
   showSelfiePreview(blob, "Live selfie captured — ready to scan");
   $("#aiStatus").textContent = "Selfie captured. Tap Find my photos to match across all angles and distances.";
+  $("#aiFind").focus();
 };
 
 $("#aiCancel").onclick = () => {

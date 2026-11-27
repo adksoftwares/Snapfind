@@ -84,7 +84,7 @@
           I consent to on-device face analysis and, if server matching is used, secure transfer of face descriptors for this session's photo matching.
         </label>
         <div class="ai-controls">
-          <button class="btn ghost" id="aiCameraBtn" type="button" disabled>Use camera</button>
+          <button class="btn ghost" id="aiCameraBtn" type="button" aria-controls="cameraBox" aria-expanded="false" disabled>Use camera</button>
           <label class="file-picker disabled" id="selfiePickerLabel" for="selfie">
             <span id="selfieFileName">Upload selfie photo…</span>
             <input type="file" id="selfie" accept="image/*" disabled hidden>
@@ -107,7 +107,7 @@
             <span>Wide group / distant faces</span>
           </label>
         </div>
-        <div id="cameraBox" class="camera-box hidden">
+        <div id="cameraBox" class="camera-box hidden" role="group" aria-label="Selfie camera preview">
           <video id="selfieVideo" autoplay playsinline muted></video>
           <div class="camera-actions">
             <button class="btn sm" id="captureSelfieBtn" type="button">Capture selfie</button>
