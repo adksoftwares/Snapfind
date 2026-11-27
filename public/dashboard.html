@@ -11,9 +11,9 @@
     <a class="brand" href="/">SNAPFIND<span>AI</span></a>
     <p class="side-label">WORKSPACE</p>
     <nav class="side-nav" aria-label="Workspace navigation">
-      <a class="active" href="#events">Events</a>
-      <a href="#staff" id="staffLink" class="hidden">Team</a>
-      <a href="#profile">Profile &amp; Security</a>
+      <a class="active" href="#events" aria-current="location" aria-controls="events">Events</a>
+      <a href="#staff" id="staffLink" class="hidden" aria-controls="staff">Team</a>
+      <a href="#profile" aria-controls="profile">Profile &amp; Security</a>
       <a href="/super-admin.html" id="superAdminLink" class="hidden">Super Admin ↗</a>
     </nav>
     <div class="side-bottom">
@@ -84,9 +84,9 @@
       <div id="eventList" class="event-list" aria-live="polite"></div>
     </section>
 
-    <section id="staff" class="dash-section hidden">
+    <section id="staff" class="dash-section hidden" aria-labelledby="staffHeading">
       <p class="eyebrow">STUDIO TEAM</p>
-      <h2>Staff members &amp; permissions</h2>
+      <h2 id="staffHeading">Staff members &amp; permissions</h2>
       <p class="muted">Create studio staff accounts scoped strictly to your studio with least-privilege permissions.</p>
       <form id="staffForm" class="panel-box">
         <div class="form-grid">
@@ -108,9 +108,9 @@
       <div id="staffListWrap" class="table-wrap"></div>
     </section>
 
-    <section id="profile" class="dash-section">
+    <section id="profile" class="dash-section" aria-labelledby="profileHeading">
       <p class="eyebrow">ACCOUNT &amp; SECURITY</p>
-      <h2>Studio profile</h2>
+      <h2 id="profileHeading">Studio profile</h2>
       <form id="profileForm" class="profile-form">
         <label for="profName">Name<input id="profName" name="name" placeholder="Your full name" required></label>
         <label for="profPhone">Phone<input id="profPhone" name="phone" placeholder="+94 77 123 4567"></label>
