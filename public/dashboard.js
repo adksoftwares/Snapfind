@@ -84,10 +84,12 @@ function initWorkspaceNavigation() {
   if (workspaceNavigationInitialized) return;
   workspaceNavigationInitialized = true;
 
-  const links = $(".side-nav a[href^='#']");
-  const sections = links
-    .map((link) => document.getElementById(link.getAttribute("href").slice(1)))
-    .filter(Boolean);
+  const links = $(".side-nav a[href^='#']").filter((link) => {
+    const sectionId = link.getAttribute("href").slice(1);
+    const section = document.getElementById(sectionId);
+    return section && !link.classList.contains("hidden") && !section.classList.contains("hidden");
+  });
+  const sections = links.map((link) => document.getElementById(link.getAttribute("href").slice(1)));
 
   function setActiveSection(sectionId) {
     links.forEach((link) => {
