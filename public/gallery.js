@@ -297,12 +297,25 @@ function renderPhotos() {
 
   if (visible.length === 0) {
     grid.innerHTML = "";
-    $("#galleryEmpty").classList.remove("hidden");
+    const empty = $("#galleryEmpty");
+    empty.classList.remove("hidden");
+    const searchQuery = $("#gallerySearch").value.trim();
     if (currentEvent?.selfie_only && photos.length === 0) {
-      $("#galleryEmpty").innerHTML = `<span>Private selfie-only gallery</span><small>Scan your face above to unlock and download only your photos (${totalEventPhotos} photo(s) in this event).</small>`;
+      empty.innerHTML = `<p role="status" aria-live="polite">Private selfie-only gallery</p><small>Scan your face above to unlock and download only your photos (${totalEventPhotos} photo(s) in this event).</small>`;
+    } else if (searchQuery) {
+      empty.innerHTML = `<p role="status" aria-live="polite">No photos match “${esc(searchQuery)}”.</p><small>Try another filename or caption, or clear your search.</small><button class="btn sm ghost" id="galleryEmptyClearSearch" type="button">Clear search</button>`;
+      $("#galleryEmptyClearSearch").onclick = () => $("#gallerySearchClear").click();
+    } else if (activeFilter === "favourites" && photos.length) {
+      empty.innerHTML = '<p role="status" aria-live="polite">No favourites yet.</p><small>Tap the heart on a photo to save it here.</small>';
+    } else if (activeFilter === "matches") {
+      empty.innerHTML = '<p role="status" aria-live="polite">No matching photos found.</p><small>Try another selfie or return to the full gallery.</small><button class="btn sm ghost" id="galleryEmptyShowAll" type="button">Show all photos</button>';
+      $("#galleryEmptyShowAll").onclick = () => {
+        activeFilter = "all";
+        renderPhotos();
+      };
     } else {
-      $("#galleryEmpty").innerHTML =
-        '<span>No photos in this view yet.</span><small>Try switching filters or wait for the photographer to upload photos.</small>';
+      empty.innerHTML =
+        '<p role="status" aria-live="polite">No photos in this view yet.</p><small>Wait for the photographer to upload images or try another filter.</small>';
     }
     $("#galleryMessage").textContent = "";
   } else {
