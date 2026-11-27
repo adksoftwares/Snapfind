@@ -2,6 +2,7 @@ const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.search);
 const tokenFromUrl = params.get("token") || "";
 let csrfToken = null;
+let csrfRequest = null;
 
 function setMsg(text, isError = false) {
   const el = $("#resetMsg");
@@ -23,11 +24,28 @@ async function api(url, options = {}) {
   return d;
 }
 
+async function ensureCsrfToken() {
+  if (csrfToken) return csrfToken;
+  if (!csrfRequest) {
+    csrfRequest = api("/api/auth/csrf")
+      .then((data) => {
+        if (!data?.csrfToken) {
+          throw new Error("Could not prepare secure password recovery. Please try again.");
+        }
+        csrfToken = data.csrfToken;
+        return csrfToken;
+      })
+      .finally(() => {
+        csrfRequest = null;
+      });
+  }
+  return csrfRequest;
+}
+
 async function init() {
   // Remove the one-time token from the address bar before any network request.
   if (tokenFromUrl) history.replaceState(null, "", "/reset-password.html");
-  const c = await api("/api/auth/csrf").catch(() => null);
-  if (c?.csrfToken) csrfToken = c.csrfToken;
+  await ensureCsrfToken().catch((err) => setMsg(err.message, true));
 
   if (tokenFromUrl) {
     $("#confirmResetForm").classList.remove("hidden");
@@ -43,6 +61,7 @@ $("#confirmResetForm").onsubmit = async (e) => {
   setMsg("", false);
   const payload = Object.fromEntries(new FormData(e.target));
   try {
+    await ensureCsrfToken();
     await api("/api/auth/password-reset/confirm", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -60,6 +79,7 @@ $("#requestResetForm").onsubmit = async (e) => {
   setMsg("", false);
   const payload = Object.fromEntries(new FormData(e.target));
   try {
+    await ensureCsrfToken();
     const res = await api("/api/auth/password-reset/request", {
       method: "POST",
       body: JSON.stringify(payload),
