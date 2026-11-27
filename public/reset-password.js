@@ -7,6 +7,8 @@ function setMsg(text, isError = false) {
   const el = $("#resetMsg");
   el.textContent = text;
   el.className = isError ? "error" : "success-msg";
+  el.setAttribute("role", isError ? "alert" : "status");
+  el.setAttribute("aria-live", isError ? "assertive" : "polite");
 }
 
 async function api(url, options = {}) {
@@ -67,5 +69,39 @@ $("#requestResetForm").onsubmit = async (e) => {
     setMsg(err.message, true);
   }
 };
+
+
+function addPendingSubmitState(formId, pendingLabel) {
+  const form = $(formId);
+  if (!form || typeof form.onsubmit !== "function") return;
+  const originalHandler = form.onsubmit;
+  form.onsubmit = async function (event) {
+    if (form.dataset.submitting === "true") {
+      event.preventDefault();
+      return;
+    }
+    form.dataset.submitting = "true";
+    const button = event.submitter || form.querySelector('button[type="submit"]');
+    const originalLabel = button?.textContent;
+    if (button) {
+      button.disabled = true;
+      button.textContent = pendingLabel;
+      button.setAttribute("aria-busy", "true");
+    }
+    try {
+      return await originalHandler.call(this, event);
+    } finally {
+      delete form.dataset.submitting;
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+        button.removeAttribute("aria-busy");
+      }
+    }
+  };
+}
+
+addPendingSubmitState("#confirmResetForm", "Updating password…");
+addPendingSubmitState("#requestResetForm", "Preparing reset link…");
 
 init();
