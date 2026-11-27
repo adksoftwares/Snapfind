@@ -12,6 +12,7 @@ let dashboardLoadSequence = 0;
 let manageEventRequestSequence = 0;
 let indexingRunSequence = 0;
 let indexingSavePromise = null;
+let workspaceNavigationInitialized = false;
 
 function esc(value = "") {
   return String(value).replace(/[&<>"']/g, (c) => ({
@@ -79,6 +80,61 @@ function connectSocket() {
   });
 }
 
+function initWorkspaceNavigation() {
+  if (workspaceNavigationInitialized) return;
+  workspaceNavigationInitialized = true;
+
+  const links = Array.from(document.querySelectorAll(".side-nav a[href^='#']")).filter((link) => {
+    const sectionId = link.getAttribute("href").slice(1);
+    const section = document.getElementById(sectionId);
+    return section && !link.classList.contains("hidden") && !section.classList.contains("hidden");
+  });
+  const sections = links.map((link) => document.getElementById(link.getAttribute("href").slice(1)));
+
+  function setActiveSection(sectionId) {
+    links.forEach((link) => {
+      const active = link.getAttribute("href") === `#${sectionId}`;
+      link.classList.toggle("active", active);
+      if (active) link.setAttribute("aria-current", "location");
+      else link.removeAttribute("aria-current");
+    });
+  }
+
+  links.forEach((link) => {
+    link.addEventListener("click", () => {
+      setActiveSection(link.getAttribute("href").slice(1));
+    });
+  });
+
+  window.addEventListener("hashchange", () => {
+    const sectionId = location.hash.slice(1);
+    if (sections.some((section) => section.id === sectionId)) {
+      setActiveSection(sectionId);
+    }
+  });
+
+  const visibleSections = sections.filter((section) => !section.classList.contains("hidden"));
+  if ("IntersectionObserver" in window && visibleSections.length) {
+    const observer = new IntersectionObserver((entries) => {
+      const candidates = entries
+        .filter((entry) => entry.isIntersecting && !entry.target.classList.contains("hidden"))
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+      if (candidates.length) setActiveSection(candidates[0].target.id);
+    }, {
+      rootMargin: "-18% 0px -62% 0px",
+      threshold: [0, 0.15, 0.3, 0.5, 0.75],
+    });
+    visibleSections.forEach((section) => observer.observe(section));
+  }
+
+  const initialSection = location.hash.slice(1);
+  if (sections.some((section) => section.id === initialSection)) {
+    setActiveSection(initialSection);
+  } else if (visibleSections[0]) {
+    setActiveSection(visibleSections[0].id);
+  }
+}
+
 async function init() {
   const meData = await api("/api/auth/me");
   const me = meData.user;
@@ -116,12 +172,7 @@ async function init() {
     $("#newEvent").classList.add("hidden");
   }
 
-  $$(".side-nav a[href^='#']").forEach((link) => {
-    link.addEventListener("click", () => {
-      $$(".side-nav a").forEach((a) => a.classList.remove("active"));
-      link.classList.add("active");
-    });
-  });
+  initWorkspaceNavigation();
 
   if ($("#evAiEnabled") && $("#evSelfieOnly")) {
     $("#evAiEnabled").addEventListener("change", () => {
