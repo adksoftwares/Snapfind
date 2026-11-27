@@ -84,7 +84,7 @@ function initWorkspaceNavigation() {
   if (workspaceNavigationInitialized) return;
   workspaceNavigationInitialized = true;
 
-  const links = $(".side-nav a[href^='#']").filter((link) => {
+  const links = Array.from(document.querySelectorAll(".side-nav a[href^='#']")).filter((link) => {
     const sectionId = link.getAttribute("href").slice(1);
     const section = document.getElementById(sectionId);
     return section && !link.classList.contains("hidden") && !section.classList.contains("hidden");
