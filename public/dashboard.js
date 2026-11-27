@@ -895,7 +895,7 @@ async function manageEvent(eventId, options = {}) {
   let activeManageTab = "";
   function setActiveManageTab(tabId) {
     activeManageTab = tabId;
-    $(".manage-actions button").forEach((btn) => {
+    document.querySelectorAll(".manage-sticky-head .manage-actions button").forEach((btn) => {
       const active = Boolean(tabId) && btn.id === tabId;
       btn.classList.toggle("is-active-tab", active);
       btn.setAttribute("aria-pressed", String(active));
