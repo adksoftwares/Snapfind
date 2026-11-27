@@ -292,21 +292,31 @@ const VIEW_META = {
   audit: ["Immutable audit logs", "Every privileged Super Admin action and platform change."],
 };
 
-async function switchView(view) {
+async function switchView(view, options = {}) {
+  if (!VIEW_META[view]) view = "overview";
+  const previousView = activeView;
+  const historyMode = options.historyMode || "replace";
   activeView = view;
-  if (location.hash !== `#${view}` && history.replaceState) {
-    history.replaceState(null, "", `#${view}`);
+
+  if (location.hash !== `#${view}` && historyMode !== "none" && history[historyMode + "State"]) {
+    history[historyMode + "State"]({ saView: view }, "", `#${view}`);
   }
   document.querySelectorAll("[data-sa-view]").forEach((el) => {
-    el.classList.toggle("active", el.dataset.saView === view);
+    const active = el.dataset.saView === view;
+    el.classList.toggle("active", active);
+    if (active) el.setAttribute("aria-current", "page");
+    else el.removeAttribute("aria-current");
   });
   document.querySelectorAll(".sa-view, .dash-view").forEach((sec) => {
     sec.classList.toggle("hidden", sec.id !== `view-${view}`);
   });
-  const [title, sub] = VIEW_META[view] || ["Super Admin", ""];
+  const [title, sub] = VIEW_META[view];
   $("#saViewTitle").textContent = title;
   $("#saViewSubtitle").textContent = sub;
   setGlobalMsg("");
+  if (options.focusHeading && previousView !== view) {
+    $("#saViewTitle").focus({ preventScroll: true });
+  }
 
   if (view === "overview") await loadOverview();
   else if (view === "accounts") await loadAccounts();
@@ -319,15 +329,49 @@ async function switchView(view) {
 document.querySelectorAll("[data-sa-view]").forEach((link) => {
   link.onclick = (e) => {
     e.preventDefault();
-    switchView(link.dataset.saView).catch((err) => setGlobalMsg(err.message, true));
+    switchView(link.dataset.saView, { historyMode: "push", focusHeading: true })
+      .catch((err) => setGlobalMsg(err.message, true));
   };
+});
+
+window.addEventListener("popstate", () => {
+  const hashView = location.hash.replace(/^#/, "");
+  const view = VIEW_META[hashView] ? hashView : "overview";
+  if (view !== activeView) {
+    switchView(view, { historyMode: "none" }).catch((err) => setGlobalMsg(err.message, true));
+  }
 });
 
 // Overview
 async function loadOverview() {
   const requestId = ++listRequestIds.overview;
-  const d = await api("/api/super-admin/overview");
+  const containers = ["#overviewKpis", "#lastRegisteredWrap", "#recentLoginsWrap"];
+  containers.forEach((selector) => {
+    const el = $(selector);
+    el.setAttribute("aria-busy", "true");
+    if (!el.dataset.loaded) {
+      el.innerHTML = '<div class="empty-card" role="status" aria-live="polite">Loading platform overview…</div>';
+    }
+  });
+
+  let d;
+  try {
+    d = await api("/api/super-admin/overview");
+  } catch (err) {
+    if (requestId !== listRequestIds.overview) return;
+    containers.forEach((selector) => {
+      const el = $(selector);
+      el.removeAttribute("aria-busy");
+      if (!el.dataset.loaded) {
+        el.innerHTML = `<div class="empty-card"><p class="error" role="alert">${esc(err.message || "Overview could not be loaded.")}</p><button class="btn sm ghost" type="button" data-retry-overview>Retry</button></div>`;
+        el.querySelector("[data-retry-overview]")?.addEventListener("click", () => loadOverview());
+      }
+    });
+    setGlobalMsg("Platform overview could not be refreshed.", true);
+    return;
+  }
   if (requestId !== listRequestIds.overview) return;
+  containers.forEach((selector) => $(selector).removeAttribute("aria-busy"));
   const ownerWord = d.accounts.studio_owners === 1 ? "owner" : "owners";
   const sessionWord = d.sessions.active_sessions === 1 ? "active session" : "active sessions";
   $("#overviewKpis").innerHTML = `
@@ -380,6 +424,9 @@ async function loadOverview() {
         .join("")}
     </table>
   `;
+  containers.forEach((selector) => {
+    $(selector).dataset.loaded = "true";
+  });
 }
 
 // Accounts
