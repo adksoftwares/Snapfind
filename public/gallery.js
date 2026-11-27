@@ -35,6 +35,7 @@ let searchTimer = null;
 let aiCancelled = false;
 let socket = null;
 let lightboxPhotoId = null;
+let lightboxReturnPhotoId = null;
 let pendingFavouriteIds = new Set();
 let pendingSelectionIds = new Set();
 let galleryLoadSequence = 0;
@@ -457,6 +458,8 @@ function openLightbox(photoId) {
   };
 
   if (!dialog.open) {
+    const opener = document.activeElement;
+    lightboxReturnPhotoId = opener?.dataset?.openLightbox || photoId;
     dialog.showModal();
   } else if (["lbPrev", "lbNext", "lbFav", "lbSelect"].includes(focusedControlId)) {
     document.getElementById(focusedControlId)?.focus();
@@ -464,6 +467,15 @@ function openLightbox(photoId) {
     $("#lightboxClose").focus();
   }
 }
+
+$("#lightboxDialog").addEventListener("close", () => {
+  const returnPhotoId = lightboxReturnPhotoId;
+  lightboxReturnPhotoId = null;
+  const opener = Array.from(document.querySelectorAll("[data-open-lightbox]"))
+    .find((element) => element.dataset.openLightbox === returnPhotoId);
+  const fallback = document.querySelector("[data-open-lightbox]") || $("#gallerySearch");
+  (opener || fallback)?.focus({ preventScroll: true });
+});
 
 function moveLightbox(direction) {
   const list = getVisiblePhotos();
