@@ -368,6 +368,14 @@ async function loadOverview() {
       }
     });
     setGlobalMsg("Platform overview could not be refreshed.", true);
+    if (containers.some((selector) => $(selector).dataset.loaded)) {
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.className = "btn sm ghost";
+      retry.textContent = "Retry overview";
+      retry.onclick = () => loadOverview();
+      $("#saGlobalMsg").append(" ", retry);
+    }
     return;
   }
   if (requestId !== listRequestIds.overview) return;
