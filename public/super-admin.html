@@ -75,12 +75,12 @@
       <a class="brand" href="/">SNAPFIND<span>SA</span></a>
       <p class="side-label">SUPER ADMIN</p>
       <nav class="side-nav" aria-label="Super Admin navigation">
-        <a href="#overview" class="active" data-sa-view="overview">Overview</a>
-        <a href="#accounts" data-sa-view="accounts">Accounts</a>
-        <a href="#studios" data-sa-view="studios">Studios</a>
-        <a href="#security" data-sa-view="security">Security logs</a>
-        <a href="#sessions" data-sa-view="sessions">Active sessions</a>
-        <a href="#audit" data-sa-view="audit">Audit logs</a>
+        <a href="#overview" class="active" aria-current="page" aria-controls="view-overview" data-sa-view="overview">Overview</a>
+        <a href="#accounts" aria-controls="view-accounts" data-sa-view="accounts">Accounts</a>
+        <a href="#studios" aria-controls="view-studios" data-sa-view="studios">Studios</a>
+        <a href="#security" aria-controls="view-security" data-sa-view="security">Security logs</a>
+        <a href="#sessions" aria-controls="view-sessions" data-sa-view="sessions">Active sessions</a>
+        <a href="#audit" aria-controls="view-audit" data-sa-view="audit">Audit logs</a>
       </nav>
       <div class="side-bottom">
         <span id="saSideEmail"></span>
@@ -93,7 +93,7 @@
       <header class="dash-head">
         <div>
           <p class="eyebrow">ENTERPRISE CONTROL PLANE</p>
-          <h1 id="saViewTitle">Platform overview</h1>
+          <h1 id="saViewTitle" tabindex="-1">Platform overview</h1>
           <p class="muted" id="saViewSubtitle">Account lifecycle, multi-tenant studios, security telemetry, and immutable auditing.</p>
         </div>
         <div class="dash-head-actions">
