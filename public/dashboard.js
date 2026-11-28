@@ -12,6 +12,7 @@ let dashboardLoadSequence = 0;
 let manageEventRequestSequence = 0;
 let indexingRunSequence = 0;
 let indexingSavePromise = null;
+let photoUploadInProgress = false;
 let workspaceNavigationInitialized = false;
 
 function esc(value = "") {
@@ -26,6 +27,28 @@ function esc(value = "") {
 
 function formatMb(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function setPhotoUploadUiBusy(busy) {
+  const input = $("#photoUpload");
+  const label = document.querySelector('label[for="photoUpload"]');
+  const dropzone = $("#photoDropzone");
+  if (input) input.disabled = busy;
+  if (label) {
+    label.classList.toggle("disabled", busy);
+    if (busy) label.setAttribute("aria-disabled", "true");
+    else label.removeAttribute("aria-disabled");
+  }
+  if (dropzone) {
+    dropzone.classList.toggle("is-uploading", busy);
+    if (busy) {
+      dropzone.setAttribute("aria-disabled", "true");
+      dropzone.setAttribute("aria-busy", "true");
+    } else {
+      dropzone.removeAttribute("aria-disabled");
+      dropzone.removeAttribute("aria-busy");
+    }
+  }
 }
 
 function setStatusMsg(selector, text, isError = false) {
@@ -866,6 +889,8 @@ async function manageEvent(eventId, options = {}) {
     </div>
   `;
 
+  setPhotoUploadUiBusy(photoUploadInProgress);
+
   const managePhotoSearch = $("#managePhotoSearch");
   if (managePhotoSearch) {
     managePhotoSearch.value = previousManagePhotoQuery;
@@ -972,24 +997,39 @@ async function manageEvent(eventId, options = {}) {
 
   if ($("#photoUpload")) {
     const handlePhotoUpload = async (incomingFiles) => {
+      if (photoUploadInProgress) {
+        if ($("#manageStatus")) $("#manageStatus").textContent = "A photo upload is already in progress. Please wait before starting another.";
+        return;
+      }
       const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
       const files = [...incomingFiles].filter((file) => acceptedTypes.has(file.type));
       const rejectedTypes = [...incomingFiles].filter((file) => !acceptedTypes.has(file.type));
       if (!files.length) {
-        $("#manageStatus").textContent = "";
-        if (rejectedTypes.length) $("#manageError").textContent = "Choose JPEG, PNG, WebP or GIF photo files.";
+        if ($("#manageStatus")) $("#manageStatus").textContent = "";
+        if (rejectedTypes.length && $("#manageError")) $("#manageError").textContent = "Choose JPEG, PNG, WebP or GIF photo files.";
         return;
       }
-      const unsupportedMessage = rejectedTypes.length ? "Skipped " + rejectedTypes.length + " unsupported file(s). " : "";
-      $("#manageError").textContent = "";
-      const uploadProgress = $("#uploadProgress");
-      uploadProgress.value = 0;
-      uploadProgress.classList.remove("hidden");
+
+      photoUploadInProgress = true;
+      setPhotoUploadUiBusy(true);
+      const setManageStatus = (message) => {
+        if ($("#manageDialog").open && currentEventId === eventId && $("#manageStatus")) {
+          $("#manageStatus").textContent = message;
+        }
+      };
+      let uploadProgress = null;
+
+      try {
+        const unsupportedMessage = rejectedTypes.length ? "Skipped " + rejectedTypes.length + " unsupported file(s). " : "";
+        if ($("#manageError")) $("#manageError").textContent = "";
+        uploadProgress = $("#uploadProgress");
+        uploadProgress.value = 0;
+        uploadProgress.classList.remove("hidden");
 
 
       const canIndexOnUpload = Boolean(e.ai_enabled && window.SnapFindFace);
       if (canIndexOnUpload) {
-        $("#manageStatus").textContent = "Loading face models to auto-index uploads…";
+        setManageStatus("Loading face models to auto-index uploads…");
         try {
           await window.SnapFindFace.loadFaceModels();
         } catch {
@@ -1031,7 +1071,7 @@ async function manageEvent(eventId, options = {}) {
             fd.append("photos", f);
 
             if (canIndexOnUpload) {
-              $("#manageStatus").textContent = `Scanning faces (${overallIdx}/${files.length}): ${f.name}…`;
+              setManageStatus(`Scanning faces (${overallIdx}/${files.length}): ${f.name}…`);
               try {
                 const extracted = await window.SnapFindFace.extractEventFaces(f);
                 faceEntries.push({ indexed: true, descriptors: extracted.descriptors });
@@ -1047,7 +1087,7 @@ async function manageEvent(eventId, options = {}) {
           }
 
           uploadProgress.value = (canIndexOnUpload ? 50 : 0) + Math.round((processedOffset / files.length) * (canIndexOnUpload ? 50 : 100));
-          $("#manageStatus").textContent = `Uploading & saving (${processedOffset + batch.length}/${files.length})…`;
+          setManageStatus(`Uploading & saving (${processedOffset + batch.length}/${files.length})…`);
           const result = await api(`/api/events/${encodeURIComponent(eventId)}/photos`, {
             method: "POST",
             body: fd,
@@ -1059,20 +1099,49 @@ async function manageEvent(eventId, options = {}) {
           uploadProgress.value = (canIndexOnUpload ? 50 : 0) + Math.round((processedOffset / files.length) * (canIndexOnUpload ? 50 : 100));
         }
 
-        await Promise.all([loadDashboard(), manageEvent(eventId)]);
-        if (allRejected.length) {
-          $("#manageError").textContent = unsupportedMessage + `Skipped ${allRejected.length} invalid file(s): ${allRejected.map((r) => r.name).join(", ")}`;
-        } else if (unsupportedMessage) {
-          $("#manageError").textContent = unsupportedMessage;
-        }
-        if (uploadedCount > 0) {
-          $("#manageStatus").textContent = canIndexOnUpload
-            ? `Uploaded ${uploadedCount} photo(s) and automatically indexed ${indexedFacesTotal} face(s).`
-            : `Uploaded ${uploadedCount} photo(s) cleanly (EXIF stripped, WebP previews ready).`;
+        const refreshManage = $("#manageDialog").open && currentEventId === eventId
+          ? manageEvent(eventId)
+          : Promise.resolve(false);
+        await Promise.all([loadDashboard(), refreshManage]);
+        const manageIsCurrent = $("#manageDialog").open && currentEventId === eventId && $("#manageStatus") && $("#manageError");
+        if (manageIsCurrent) {
+          if (allRejected.length) {
+            $("#manageError").textContent = unsupportedMessage + `Skipped ${allRejected.length} invalid file(s): ${allRejected.map((r) => r.name).join(", ")}`;
+          } else if (unsupportedMessage) {
+            $("#manageError").textContent = unsupportedMessage;
+          }
+          if (uploadedCount > 0) {
+            $("#manageStatus").textContent = canIndexOnUpload
+              ? `Uploaded ${uploadedCount} photo(s) and automatically indexed ${indexedFacesTotal} face(s).`
+              : `Uploaded ${uploadedCount} photo(s) cleanly (EXIF stripped, WebP previews ready).`;
+          }
+        } else if (uploadedCount > 0) {
+          showToast(`Uploaded ${uploadedCount} photo(s) to ${e.title}.`);
         }
       } catch (err) {
-        $("#manageStatus").textContent = "";
-        $("#manageError").textContent = err.message;
+        const message = err.message || "Photo upload failed.";
+        if ($("#manageDialog").open && currentEventId === eventId && $("#manageStatus") && $("#manageError")) {
+          $("#manageStatus").textContent = "";
+          $("#manageError").textContent = message;
+        } else {
+          showToast(`Photo upload failed: ${message}`);
+        }
+      }
+      } catch (err) {
+        const message = err.message || "Photo upload could not be prepared.";
+        if ($("#manageDialog").open && currentEventId === eventId) {
+          setManageStatus("");
+          if ($("#manageError")) $("#manageError").textContent = message;
+        } else {
+          showToast(`Photo upload failed: ${message}`);
+        }
+      } finally {
+        photoUploadInProgress = false;
+        setPhotoUploadUiBusy(false);
+        if (uploadProgress?.isConnected) {
+          uploadProgress.classList.add("hidden");
+          uploadProgress.value = 0;
+        }
       }
     };
 
@@ -1083,7 +1152,9 @@ async function manageEvent(eventId, options = {}) {
 
     const dropzone = $("#photoDropzone");
     if (dropzone) {
-      dropzone.addEventListener("click", () => $("#photoUpload").click());
+      dropzone.addEventListener("click", () => {
+        if (!photoUploadInProgress) $("#photoUpload").click();
+      });
       ["dragenter", "dragover"].forEach((eventName) => {
         dropzone.addEventListener(eventName, (ev) => {
           ev.preventDefault(); ev.stopPropagation(); dropzone.classList.add("is-dragover");
@@ -1097,9 +1168,13 @@ async function manageEvent(eventId, options = {}) {
       });
       dropzone.addEventListener("drop", (ev) => {
         ev.preventDefault(); ev.stopPropagation(); dropzone.classList.remove("is-dragover");
-        if (ev.dataTransfer && ev.dataTransfer.files.length) handlePhotoUpload(ev.dataTransfer.files);
+        if (!photoUploadInProgress && ev.dataTransfer && ev.dataTransfer.files.length) handlePhotoUpload(ev.dataTransfer.files);
       });
       dropzone.addEventListener("keydown", (ev) => {
+        if (photoUploadInProgress) {
+          if (ev.key === "Enter" || ev.key === " ") ev.preventDefault();
+          return;
+        }
         if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); $("#photoUpload").click(); }
       });
     }
