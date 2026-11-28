@@ -714,6 +714,7 @@ async function manageEvent(eventId, options = {}) {
   const previousManageFocusId = sameOpenEvent ? document.activeElement?.id || "" : "";
   const previousManagePhotoQuery = sameOpenEvent ? $("#managePhotoSearch")?.value || "" : "";
   const requestId = ++manageEventRequestSequence;
+  const isSameEventWorkspaceVisible = () => currentEventId === eventId && dialog.open;
   if (!sameOpenEvent) {
     indexingAbort = true;
     indexingRunSequence += 1;
@@ -1307,17 +1308,24 @@ async function manageEvent(eventId, options = {}) {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
-        await loadDashboard();
-        await manageEvent(eventId);
-        $("#manageStatus").textContent = "Event settings updated.";
+        const refreshManage = isSameEventWorkspaceVisible() ? manageEvent(eventId) : Promise.resolve(false);
+        await Promise.all([loadDashboard(), refreshManage]);
+        if ($("#manageDialog").open && currentEventId === eventId && $("#manageStatus")) {
+          $("#manageStatus").textContent = "Event settings updated.";
+        } else {
+          showToast("Event settings updated.");
+        }
       } catch (err) {
-        $("#manageError").textContent = err.message;
+        if (isSameEventWorkspaceVisible() && $("#manageError")) $("#manageError").textContent = err.message;
+        else showToast(`Event settings update failed: ${err.message}`);
       }
     };
     addDashboardPendingState("editEventForm", "Saving event settings…");
 
     let deleteArmed = false;
     const deleteEventButton = $("#deleteEventBtn");
+    const originalDeleteLabel = deleteEventButton.textContent;
+    const originalDeleteAriaLabel = deleteEventButton.getAttribute("aria-label");
     deleteEventButton.onclick = async () => {
       if (!deleteArmed) {
         deleteArmed = true;
@@ -1332,15 +1340,23 @@ async function manageEvent(eventId, options = {}) {
       $("#manageError").textContent = "";
       try {
         await api(`/api/events/${encodeURIComponent(eventId)}`, { method: "DELETE" });
-        $("#manageDialog").close();
+        deleteArmed = false;
+        const sameEventStillOpen = isSameEventWorkspaceVisible();
+        if (sameEventStillOpen) dialog.close();
         await loadDashboard();
+        if (!sameEventStillOpen) showToast(`Event "${e.title}" was deleted.`);
       } catch (err) {
         deleteArmed = false;
-        deleteEventButton.disabled = false;
-        deleteEventButton.textContent = "Delete event";
-        deleteEventButton.removeAttribute("aria-label");
-        deleteEventButton.removeAttribute("aria-busy");
-        $("#manageError").textContent = err.message;
+        if (isSameEventWorkspaceVisible() && $("#manageError")) $("#manageError").textContent = err.message;
+        else showToast(`Event could not be deleted: ${err.message}`);
+      } finally {
+        if (deleteEventButton.isConnected) {
+          deleteEventButton.disabled = false;
+          deleteEventButton.textContent = originalDeleteLabel;
+          if (originalDeleteAriaLabel) deleteEventButton.setAttribute("aria-label", originalDeleteAriaLabel);
+          else deleteEventButton.removeAttribute("aria-label");
+          deleteEventButton.removeAttribute("aria-busy");
+        }
       }
     };
   }
@@ -1359,6 +1375,7 @@ async function manageEvent(eventId, options = {}) {
       if (btn.disabled) return;
       const pid = btn.dataset.saveCaption;
       const input = document.querySelector(`[data-caption-input="${CSS.escape(pid)}"]`);
+      if (!input) return;
       const originalLabel = btn.textContent;
       btn.disabled = true;
       btn.textContent = "Saving…";
@@ -1369,9 +1386,11 @@ async function manageEvent(eventId, options = {}) {
           method: "PATCH",
           body: JSON.stringify({ caption: input.value }),
         });
-        $("#manageStatus").textContent = "Caption saved.";
+        if (isSameEventWorkspaceVisible() && $("#manageStatus")) $("#manageStatus").textContent = "Caption saved.";
+        else showToast("Photo caption saved.");
       } catch (err) {
-        $("#manageError").textContent = err.message;
+        if (isSameEventWorkspaceVisible() && $("#manageError")) $("#manageError").textContent = err.message;
+        else showToast(`Caption could not be saved: ${err.message}`);
       } finally {
         if (btn.isConnected) {
           btn.disabled = false;
@@ -1384,24 +1403,44 @@ async function manageEvent(eventId, options = {}) {
 
   document.querySelectorAll("[data-delete-photo]").forEach((btn) => {
     let armed = false;
+    const originalLabel = btn.textContent;
+    const originalAriaLabel = btn.getAttribute("aria-label");
     btn.onclick = async () => {
       if (!armed) {
         armed = true;
         btn.textContent = "Confirm?";
+        btn.setAttribute("aria-label", "Confirm removal of this photo");
         return;
       }
+      if (btn.disabled) return;
+      const pid = btn.dataset.deletePhoto;
       btn.disabled = true;
-      btn.textContent = "…";
+      btn.textContent = "Removing…";
+      btn.setAttribute("aria-busy", "true");
       try {
-        await api(`/api/photos/${encodeURIComponent(btn.dataset.deletePhoto)}`, {
+        await api(`/api/photos/${encodeURIComponent(pid)}`, {
           method: "DELETE",
         });
-        await Promise.all([loadDashboard(), manageEvent(eventId)]);
-      } catch (err) {
-        $("#manageError").textContent = err.message;
-        btn.disabled = false;
         armed = false;
-        btn.textContent = "Remove";
+        const refreshManage = isSameEventWorkspaceVisible() ? manageEvent(eventId) : Promise.resolve(false);
+        await Promise.all([loadDashboard(), refreshManage]);
+        if ($("#manageDialog").open && currentEventId === eventId && $("#manageStatus")) {
+          $("#manageStatus").textContent = "Photo removed.";
+        } else {
+          showToast("Photo removed.");
+        }
+      } catch (err) {
+        if (isSameEventWorkspaceVisible() && $("#manageError")) $("#manageError").textContent = err.message;
+        else showToast(`Photo could not be removed: ${err.message}`);
+        armed = false;
+      } finally {
+        if (btn.isConnected) {
+          btn.disabled = false;
+          btn.textContent = armed ? "Confirm?" : originalLabel;
+          if (originalAriaLabel) btn.setAttribute("aria-label", originalAriaLabel);
+          else btn.removeAttribute("aria-label");
+          btn.removeAttribute("aria-busy");
+        }
       }
     };
   });
@@ -1413,6 +1452,7 @@ async function manageEvent(eventId, options = {}) {
     const clearBtn = $("#clearSelectedPhotosBtn");
     const bulkBtn = $("#bulkDeletePhotosBtn");
     let bulkArmed = false;
+    let bulkDeleteInProgress = false;
 
     function syncBulkSelectionUi() {
       bulkArmed = false;
@@ -1423,15 +1463,18 @@ async function manageEvent(eventId, options = {}) {
       checkboxes.forEach((cb) => {
         const card = cb.closest("[data-photo-card]");
         if (card) card.classList.toggle("is-selected", cb.checked);
+        cb.disabled = bulkDeleteInProgress;
       });
 
       selectAllEl.checked = count > 0 && count === total;
       selectAllEl.indeterminate = count > 0 && count < total;
+      selectAllEl.disabled = bulkDeleteInProgress;
+      clearBtn.disabled = bulkDeleteInProgress;
       countEl.textContent = `${count} selected`;
       clearBtn.classList.toggle("hidden", count === 0);
       bulkBtn.classList.toggle("hidden", count === 0);
-      bulkBtn.disabled = false;
-      bulkBtn.textContent = `Delete selected (${count})`;
+      bulkBtn.disabled = bulkDeleteInProgress;
+      bulkBtn.textContent = bulkDeleteInProgress ? "Deleting…" : `Delete selected (${count})`;
     }
 
     checkboxes.forEach((cb) => {
@@ -1460,21 +1503,34 @@ async function manageEvent(eventId, options = {}) {
         bulkBtn.textContent = `Confirm delete (${photoIds.length})?`;
         return;
       }
+      if (bulkDeleteInProgress || bulkBtn.disabled) return;
       $("#manageError").textContent = "";
-      bulkBtn.disabled = true;
-      bulkBtn.textContent = "Deleting…";
+      bulkDeleteInProgress = true;
+      bulkBtn.setAttribute("aria-busy", "true");
+      syncBulkSelectionUi();
       try {
         const res = await api(`/api/events/${encodeURIComponent(eventId)}/photos/bulk-delete`, {
           method: "POST",
           body: JSON.stringify({ photo_ids: photoIds }),
         });
-        await Promise.all([loadDashboard(), manageEvent(eventId)]);
-        $("#manageStatus").textContent = `Deleted ${res.deleted_count} photo(s).`;
-      } catch (err) {
-        $("#manageError").textContent = err.message;
-        bulkBtn.disabled = false;
         bulkArmed = false;
-        bulkBtn.textContent = `Delete selected (${photoIds.length})`;
+        const refreshManage = isSameEventWorkspaceVisible() ? manageEvent(eventId) : Promise.resolve(false);
+        await Promise.all([loadDashboard(), refreshManage]);
+        if ($("#manageDialog").open && currentEventId === eventId && $("#manageStatus")) {
+          $("#manageStatus").textContent = `Deleted ${res.deleted_count} photo(s).`;
+        } else {
+          showToast(`Deleted ${res.deleted_count} photo(s).`);
+        }
+      } catch (err) {
+        if (isSameEventWorkspaceVisible() && $("#manageError")) $("#manageError").textContent = err.message;
+        else showToast(`Selected photos could not be deleted: ${err.message}`);
+        bulkArmed = false;
+      } finally {
+        bulkDeleteInProgress = false;
+        if (bulkBtn.isConnected) {
+          bulkBtn.removeAttribute("aria-busy");
+          syncBulkSelectionUi();
+        }
       }
     };
   }
