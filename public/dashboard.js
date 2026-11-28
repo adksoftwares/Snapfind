@@ -714,7 +714,7 @@ async function manageEvent(eventId, options = {}) {
   const previousManageFocusId = sameOpenEvent ? document.activeElement?.id || "" : "";
   const previousManagePhotoQuery = sameOpenEvent ? $("#managePhotoSearch")?.value || "" : "";
   const requestId = ++manageEventRequestSequence;
-  const isCurrentEventWorkspace = () => requestId === manageEventRequestSequence && currentEventId === eventId && dialog.open;
+  const isSameEventWorkspaceVisible = () => currentEventId === eventId && dialog.open;
   if (!sameOpenEvent) {
     indexingAbort = true;
     indexingRunSequence += 1;
@@ -1308,7 +1308,7 @@ async function manageEvent(eventId, options = {}) {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
-        const refreshManage = isCurrentEventWorkspace() ? manageEvent(eventId) : Promise.resolve(false);
+        const refreshManage = isSameEventWorkspaceVisible() ? manageEvent(eventId) : Promise.resolve(false);
         await Promise.all([loadDashboard(), refreshManage]);
         if ($("#manageDialog").open && currentEventId === eventId && $("#manageStatus")) {
           $("#manageStatus").textContent = "Event settings updated.";
@@ -1316,7 +1316,7 @@ async function manageEvent(eventId, options = {}) {
           showToast("Event settings updated.");
         }
       } catch (err) {
-        if (isCurrentEventWorkspace() && $("#manageError")) $("#manageError").textContent = err.message;
+        if (isSameEventWorkspaceVisible() && $("#manageError")) $("#manageError").textContent = err.message;
         else showToast(`Event settings update failed: ${err.message}`);
       }
     };
@@ -1324,6 +1324,8 @@ async function manageEvent(eventId, options = {}) {
 
     let deleteArmed = false;
     const deleteEventButton = $("#deleteEventBtn");
+    const originalDeleteLabel = deleteEventButton.textContent;
+    const originalDeleteAriaLabel = deleteEventButton.getAttribute("aria-label");
     deleteEventButton.onclick = async () => {
       if (!deleteArmed) {
         deleteArmed = true;
@@ -1338,15 +1340,23 @@ async function manageEvent(eventId, options = {}) {
       $("#manageError").textContent = "";
       try {
         await api(`/api/events/${encodeURIComponent(eventId)}`, { method: "DELETE" });
-        $("#manageDialog").close();
+        deleteArmed = false;
+        const sameEventStillOpen = isSameEventWorkspaceVisible();
+        if (sameEventStillOpen) dialog.close();
         await loadDashboard();
+        if (!sameEventStillOpen) showToast(`Event "${e.title}" was deleted.`);
       } catch (err) {
         deleteArmed = false;
-        deleteEventButton.disabled = false;
-        deleteEventButton.textContent = "Delete event";
-        deleteEventButton.removeAttribute("aria-label");
-        deleteEventButton.removeAttribute("aria-busy");
-        $("#manageError").textContent = err.message;
+        if (isSameEventWorkspaceVisible() && $("#manageError")) $("#manageError").textContent = err.message;
+        else showToast(`Event could not be deleted: ${err.message}`);
+      } finally {
+        if (deleteEventButton.isConnected) {
+          deleteEventButton.disabled = false;
+          deleteEventButton.textContent = originalDeleteLabel;
+          if (originalDeleteAriaLabel) deleteEventButton.setAttribute("aria-label", originalDeleteAriaLabel);
+          else deleteEventButton.removeAttribute("aria-label");
+          deleteEventButton.removeAttribute("aria-busy");
+        }
       }
     };
   }
@@ -1376,10 +1386,10 @@ async function manageEvent(eventId, options = {}) {
           method: "PATCH",
           body: JSON.stringify({ caption: input.value }),
         });
-        if (isCurrentEventWorkspace() && $("#manageStatus")) $("#manageStatus").textContent = "Caption saved.";
+        if (isSameEventWorkspaceVisible() && $("#manageStatus")) $("#manageStatus").textContent = "Caption saved.";
         else showToast("Photo caption saved.");
       } catch (err) {
-        if (isCurrentEventWorkspace() && $("#manageError")) $("#manageError").textContent = err.message;
+        if (isSameEventWorkspaceVisible() && $("#manageError")) $("#manageError").textContent = err.message;
         else showToast(`Caption could not be saved: ${err.message}`);
       } finally {
         if (btn.isConnected) {
@@ -1412,7 +1422,7 @@ async function manageEvent(eventId, options = {}) {
           method: "DELETE",
         });
         armed = false;
-        const refreshManage = isCurrentEventWorkspace() ? manageEvent(eventId) : Promise.resolve(false);
+        const refreshManage = isSameEventWorkspaceVisible() ? manageEvent(eventId) : Promise.resolve(false);
         await Promise.all([loadDashboard(), refreshManage]);
         if ($("#manageDialog").open && currentEventId === eventId && $("#manageStatus")) {
           $("#manageStatus").textContent = "Photo removed.";
@@ -1420,7 +1430,7 @@ async function manageEvent(eventId, options = {}) {
           showToast("Photo removed.");
         }
       } catch (err) {
-        if (isCurrentEventWorkspace() && $("#manageError")) $("#manageError").textContent = err.message;
+        if (isSameEventWorkspaceVisible() && $("#manageError")) $("#manageError").textContent = err.message;
         else showToast(`Photo could not be removed: ${err.message}`);
         armed = false;
       } finally {
@@ -1504,7 +1514,7 @@ async function manageEvent(eventId, options = {}) {
           body: JSON.stringify({ photo_ids: photoIds }),
         });
         bulkArmed = false;
-        const refreshManage = isCurrentEventWorkspace() ? manageEvent(eventId) : Promise.resolve(false);
+        const refreshManage = isSameEventWorkspaceVisible() ? manageEvent(eventId) : Promise.resolve(false);
         await Promise.all([loadDashboard(), refreshManage]);
         if ($("#manageDialog").open && currentEventId === eventId && $("#manageStatus")) {
           $("#manageStatus").textContent = `Deleted ${res.deleted_count} photo(s).`;
@@ -1512,7 +1522,7 @@ async function manageEvent(eventId, options = {}) {
           showToast(`Deleted ${res.deleted_count} photo(s).`);
         }
       } catch (err) {
-        if (isCurrentEventWorkspace() && $("#manageError")) $("#manageError").textContent = err.message;
+        if (isSameEventWorkspaceVisible() && $("#manageError")) $("#manageError").textContent = err.message;
         else showToast(`Selected photos could not be deleted: ${err.message}`);
         bulkArmed = false;
       } finally {
