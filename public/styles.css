@@ -2251,6 +2251,9 @@ body.dash .storage-progress::-moz-progress-bar { background:#849a66; border-radi
 .photo-dropzone { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; margin:16px 0 6px; padding:24px 18px; border:1.5px dashed #bdc9bf; border-radius:12px; background:#fafbf8; color:var(--ink); text-align:center; cursor:pointer; outline:none; transition:background .16s ease, border-color .16s ease, box-shadow .16s ease; }
 .photo-dropzone:hover, .photo-dropzone:focus-visible { border-color:#6f9e31; background:#f1f5eb; box-shadow:0 0 0 3px #6f9e311c; }
 .photo-dropzone.is-dragover { border-color:#6f9e31; border-style:solid; background:#eaf2e3; box-shadow:0 0 0 4px #6f9e3124; }
+.photo-dropzone.is-uploading { opacity:.58; cursor:progress; }
+.photo-dropzone.is-uploading:hover { border-color:#bdc9bf; background:#fafbf8; box-shadow:none; }
+.upload-btn.disabled { opacity:.55; cursor:progress; pointer-events:none; }
 .photo-dropzone-icon { display:grid; place-items:center; width:38px; height:38px; border-radius:10px; background:#edf4e5; color:var(--accent); font-size:23px; font-weight:700; }
 .photo-dropzone strong { font-size:14px; }
 .photo-dropzone span:not(.photo-dropzone-icon) { font-size:12px; color:var(--muted); }
