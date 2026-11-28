@@ -29,6 +29,28 @@ function formatMb(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function setPhotoUploadUiBusy(busy) {
+  const input = $("#photoUpload");
+  const label = document.querySelector('label[for="photoUpload"]');
+  const dropzone = $("#photoDropzone");
+  if (input) input.disabled = busy;
+  if (label) {
+    label.classList.toggle("disabled", busy);
+    if (busy) label.setAttribute("aria-disabled", "true");
+    else label.removeAttribute("aria-disabled");
+  }
+  if (dropzone) {
+    dropzone.classList.toggle("is-uploading", busy);
+    if (busy) {
+      dropzone.setAttribute("aria-disabled", "true");
+      dropzone.setAttribute("aria-busy", "true");
+    } else {
+      dropzone.removeAttribute("aria-disabled");
+      dropzone.removeAttribute("aria-busy");
+    }
+  }
+}
+
 function setStatusMsg(selector, text, isError = false) {
   const el = $(selector);
   el.textContent = text;
@@ -867,6 +889,8 @@ async function manageEvent(eventId, options = {}) {
     </div>
   `;
 
+  setPhotoUploadUiBusy(photoUploadInProgress);
+
   const managePhotoSearch = $("#managePhotoSearch");
   if (managePhotoSearch) {
     managePhotoSearch.value = previousManagePhotoQuery;
@@ -987,20 +1011,13 @@ async function manageEvent(eventId, options = {}) {
       }
 
       photoUploadInProgress = true;
-      const uploadInput = $("#photoUpload");
-      const uploadLabel = document.querySelector('label[for="photoUpload"]');
-      const dropzone = $("#photoDropzone");
+      setPhotoUploadUiBusy(true);
+      const setManageStatus = (message) => {
+        if ($("#manageDialog").open && currentEventId === eventId && $("#manageStatus")) {
+          $("#manageStatus").textContent = message;
+        }
+      };
       let uploadProgress = null;
-      if (uploadInput) uploadInput.disabled = true;
-      if (uploadLabel) {
-        uploadLabel.classList.add("disabled");
-        uploadLabel.setAttribute("aria-disabled", "true");
-      }
-      if (dropzone) {
-        dropzone.classList.add("is-uploading");
-        dropzone.setAttribute("aria-disabled", "true");
-        dropzone.setAttribute("aria-busy", "true");
-      }
 
       try {
         const unsupportedMessage = rejectedTypes.length ? "Skipped " + rejectedTypes.length + " unsupported file(s). " : "";
@@ -1012,7 +1029,7 @@ async function manageEvent(eventId, options = {}) {
 
       const canIndexOnUpload = Boolean(e.ai_enabled && window.SnapFindFace);
       if (canIndexOnUpload) {
-        $("#manageStatus").textContent = "Loading face models to auto-index uploads…";
+        setManageStatus("Loading face models to auto-index uploads…");
         try {
           await window.SnapFindFace.loadFaceModels();
         } catch {
@@ -1054,7 +1071,7 @@ async function manageEvent(eventId, options = {}) {
             fd.append("photos", f);
 
             if (canIndexOnUpload) {
-              $("#manageStatus").textContent = `Scanning faces (${overallIdx}/${files.length}): ${f.name}…`;
+              setManageStatus(`Scanning faces (${overallIdx}/${files.length}): ${f.name}…`);
               try {
                 const extracted = await window.SnapFindFace.extractEventFaces(f);
                 faceEntries.push({ indexed: true, descriptors: extracted.descriptors });
@@ -1070,7 +1087,7 @@ async function manageEvent(eventId, options = {}) {
           }
 
           uploadProgress.value = (canIndexOnUpload ? 50 : 0) + Math.round((processedOffset / files.length) * (canIndexOnUpload ? 50 : 100));
-          $("#manageStatus").textContent = `Uploading & saving (${processedOffset + batch.length}/${files.length})…`;
+          setManageStatus(`Uploading & saving (${processedOffset + batch.length}/${files.length})…`);
           const result = await api(`/api/events/${encodeURIComponent(eventId)}/photos`, {
             method: "POST",
             body: fd,
@@ -1110,18 +1127,17 @@ async function manageEvent(eventId, options = {}) {
           showToast(`Photo upload failed: ${message}`);
         }
       }
+      } catch (err) {
+        const message = err.message || "Photo upload could not be prepared.";
+        if ($("#manageDialog").open && currentEventId === eventId) {
+          setManageStatus("");
+          if ($("#manageError")) $("#manageError").textContent = message;
+        } else {
+          showToast(`Photo upload failed: ${message}`);
+        }
       } finally {
         photoUploadInProgress = false;
-        if (uploadInput?.isConnected) uploadInput.disabled = false;
-        if (uploadLabel?.isConnected) {
-          uploadLabel.classList.remove("disabled");
-          uploadLabel.removeAttribute("aria-disabled");
-        }
-        if (dropzone?.isConnected) {
-          dropzone.classList.remove("is-uploading");
-          dropzone.removeAttribute("aria-disabled");
-          dropzone.removeAttribute("aria-busy");
-        }
+        setPhotoUploadUiBusy(false);
         if (uploadProgress?.isConnected) {
           uploadProgress.classList.add("hidden");
           uploadProgress.value = 0;
