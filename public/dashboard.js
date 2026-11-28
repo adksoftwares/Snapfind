@@ -1103,7 +1103,7 @@ async function manageEvent(eventId, options = {}) {
           ? manageEvent(eventId)
           : Promise.resolve(false);
         await Promise.all([loadDashboard(), refreshManage]);
-        const manageIsCurrent = $("#manageDialog").open && currentEventId === eventId;
+        const manageIsCurrent = $("#manageDialog").open && currentEventId === eventId && $("#manageStatus") && $("#manageError");
         if (manageIsCurrent) {
           if (allRejected.length) {
             $("#manageError").textContent = unsupportedMessage + `Skipped ${allRejected.length} invalid file(s): ${allRejected.map((r) => r.name).join(", ")}`;
@@ -1120,7 +1120,7 @@ async function manageEvent(eventId, options = {}) {
         }
       } catch (err) {
         const message = err.message || "Photo upload failed.";
-        if ($("#manageDialog").open && currentEventId === eventId) {
+        if ($("#manageDialog").open && currentEventId === eventId && $("#manageStatus") && $("#manageError")) {
           $("#manageStatus").textContent = "";
           $("#manageError").textContent = message;
         } else {
