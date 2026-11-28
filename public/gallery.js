@@ -1025,8 +1025,10 @@ $("#captureSelfieBtn").onclick = async () => {
 
 $("#aiCancel").onclick = () => {
   aiCancelled = true;
-  $("#aiStatus").textContent = "Scan cancelled.";
-  $("#aiCancel").classList.add("hidden");
+  $("#aiStatus").textContent = "Stopping scan after the current operation…";
+  $("#aiFind").textContent = "Stopping…";
+  $("#aiFind").setAttribute("aria-busy", "true");
+  $("#aiCancel").disabled = true;
 };
 
 $("#aiFind").onclick = async () => {
@@ -1042,7 +1044,11 @@ $("#aiFind").onclick = async () => {
 
   aiCancelled = false;
   const btn = $("#aiFind");
+  const originalLabel = btn.textContent;
   btn.disabled = true;
+  btn.textContent = "Scanning…";
+  btn.setAttribute("aria-busy", "true");
+  $("#aiCancel").disabled = false;
   $("#aiCancel").classList.remove("hidden");
   $("#aiStatus").textContent = "Loading self-hosted face models…";
 
@@ -1112,6 +1118,7 @@ $("#aiFind").onclick = async () => {
       // Fallback: fetch all pages of lightweight WebP previews and scan multi-scale locally
       $("#aiStatus").textContent = "Fetching event preview list…";
       const allPhotos = await fetchAllEventPhotosForScan();
+      if (aiCancelled) return;
       const existingIds = new Set(photos.map((p) => p.id));
       for (const p of allPhotos) {
         if (!existingIds.has(p.id)) photos.push(p);
@@ -1123,6 +1130,7 @@ $("#aiFind").onclick = async () => {
         $("#aiStatus").textContent = `Scanning photo ${i + 1} of ${allPhotos.length} (all faces, angles & distances)…`;
         try {
           const evFaces = await window.SnapFindFace.extractEventFaces(p.preview_url);
+          if (aiCancelled) return;
           let best = 1;
           for (const desc of evFaces.descriptors) {
             const d = window.SnapFindFace.minDescriptorDistance(query.descriptors, desc);
@@ -1137,6 +1145,7 @@ $("#aiFind").onclick = async () => {
           // skip unreadable preview
         }
       }
+      if (aiCancelled) return;
       $("#aiStatus").textContent = matches.size
         ? `Found ${matches.size} matching photo(s) across ${allPhotos.length} event photos. Selfie image stayed on device; local matching was used.`
         : `Scanned ${allPhotos.length} photo(s) with no strong match. Selfie stayed on device; scan was performed locally.`;
@@ -1146,6 +1155,7 @@ $("#aiFind").onclick = async () => {
     matchedScoreById = scores;
     if (!currentEvent?.selfie_only) {
       await ensureMatchedPhotosLoaded(matches);
+      if (aiCancelled) return;
     }
     $("#aiResetScanBtn")?.classList.remove("hidden");
     activeFilter = "matches";
@@ -1154,6 +1164,9 @@ $("#aiFind").onclick = async () => {
     $("#aiStatus").textContent = err.message || "Face discovery could not be completed.";
   } finally {
     btn.disabled = !$("#aiConsent").checked;
+    btn.textContent = originalLabel;
+    btn.removeAttribute("aria-busy");
+    $("#aiCancel").disabled = false;
     $("#aiCancel").classList.add("hidden");
   }
 };
