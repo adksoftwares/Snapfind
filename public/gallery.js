@@ -783,18 +783,17 @@ $("#guestClearPickBtn").onclick = () => {
 
 
 $("#guestDownloadSelectedBtn").onclick = async () => {
-  const picked = [...downloadPickSet]
-    .map((id) => photoCacheById.get(id))
-    .filter(Boolean);
-  if (picked.length !== downloadPickSet.size) {
-    const availableIds = new Set(picked.map((photo) => photo.id));
-    const missingCount = downloadPickSet.size - availableIds.size;
-    downloadPickSet = availableIds;
+  const selectedIds = [...downloadPickSet];
+  const picked = selectedIds.map((id) => photoCacheById.get(id)).filter(Boolean);
+  const missingCount = selectedIds.length - picked.length;
+  if (missingCount) {
+    downloadPickSet = new Set(picked.map((photo) => photo.id));
     syncGuestBulkBar();
-    $("#galleryError").textContent = `${missingCount} selected photo(s) are no longer available and were removed from your download selection.`;
   }
+  $("#galleryError").textContent = missingCount
+    ? `${missingCount} selected photo(s) are no longer available and were removed from your download selection.`
+    : "";
   if (!picked.length) return;
-  $("#galleryError").textContent = $("#galleryError").textContent || "";
 
   if (picked.length === 1) {
     const single = picked[0];
