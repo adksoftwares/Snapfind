@@ -714,6 +714,7 @@ async function manageEvent(eventId, options = {}) {
   const previousManageFocusId = sameOpenEvent ? document.activeElement?.id || "" : "";
   const previousManagePhotoQuery = sameOpenEvent ? $("#managePhotoSearch")?.value || "" : "";
   const requestId = ++manageEventRequestSequence;
+  const isCurrentEventWorkspace = () => requestId === manageEventRequestSequence && currentEventId === eventId && dialog.open;
   if (!sameOpenEvent) {
     indexingAbort = true;
     indexingRunSequence += 1;
@@ -1307,11 +1308,16 @@ async function manageEvent(eventId, options = {}) {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
-        await loadDashboard();
-        await manageEvent(eventId);
-        $("#manageStatus").textContent = "Event settings updated.";
+        const refreshManage = isCurrentEventWorkspace() ? manageEvent(eventId) : Promise.resolve(false);
+        await Promise.all([loadDashboard(), refreshManage]);
+        if ($("#manageDialog").open && currentEventId === eventId && $("#manageStatus")) {
+          $("#manageStatus").textContent = "Event settings updated.";
+        } else {
+          showToast("Event settings updated.");
+        }
       } catch (err) {
-        $("#manageError").textContent = err.message;
+        if (isCurrentEventWorkspace() && $("#manageError")) $("#manageError").textContent = err.message;
+        else showToast(`Event settings update failed: ${err.message}`);
       }
     };
     addDashboardPendingState("editEventForm", "Saving event settings…");
@@ -1359,6 +1365,7 @@ async function manageEvent(eventId, options = {}) {
       if (btn.disabled) return;
       const pid = btn.dataset.saveCaption;
       const input = document.querySelector(`[data-caption-input="${CSS.escape(pid)}"]`);
+      if (!input) return;
       const originalLabel = btn.textContent;
       btn.disabled = true;
       btn.textContent = "Saving…";
@@ -1369,9 +1376,11 @@ async function manageEvent(eventId, options = {}) {
           method: "PATCH",
           body: JSON.stringify({ caption: input.value }),
         });
-        $("#manageStatus").textContent = "Caption saved.";
+        if (isCurrentEventWorkspace() && $("#manageStatus")) $("#manageStatus").textContent = "Caption saved.";
+        else showToast("Photo caption saved.");
       } catch (err) {
-        $("#manageError").textContent = err.message;
+        if (isCurrentEventWorkspace() && $("#manageError")) $("#manageError").textContent = err.message;
+        else showToast(`Caption could not be saved: ${err.message}`);
       } finally {
         if (btn.isConnected) {
           btn.disabled = false;
@@ -1388,20 +1397,38 @@ async function manageEvent(eventId, options = {}) {
       if (!armed) {
         armed = true;
         btn.textContent = "Confirm?";
+        btn.setAttribute("aria-label", "Confirm removal of this photo");
         return;
       }
+      if (btn.disabled) return;
+      const pid = btn.dataset.deletePhoto;
+      const originalLabel = "Remove";
       btn.disabled = true;
-      btn.textContent = "…";
+      btn.textContent = "Removing…";
+      btn.setAttribute("aria-busy", "true");
       try {
-        await api(`/api/photos/${encodeURIComponent(btn.dataset.deletePhoto)}`, {
+        await api(`/api/photos/${encodeURIComponent(pid)}`, {
           method: "DELETE",
         });
-        await Promise.all([loadDashboard(), manageEvent(eventId)]);
-      } catch (err) {
-        $("#manageError").textContent = err.message;
-        btn.disabled = false;
         armed = false;
-        btn.textContent = "Remove";
+        const refreshManage = isCurrentEventWorkspace() ? manageEvent(eventId) : Promise.resolve(false);
+        await Promise.all([loadDashboard(), refreshManage]);
+        if ($("#manageDialog").open && currentEventId === eventId && $("#manageStatus")) {
+          $("#manageStatus").textContent = "Photo removed.";
+        } else {
+          showToast("Photo removed.");
+        }
+      } catch (err) {
+        if (isCurrentEventWorkspace() && $("#manageError")) $("#manageError").textContent = err.message;
+        else showToast(`Photo could not be removed: ${err.message}`);
+        armed = false;
+      } finally {
+        if (btn.isConnected) {
+          btn.disabled = false;
+          btn.textContent = armed ? "Confirm?" : originalLabel;
+          btn.removeAttribute("aria-label");
+          btn.removeAttribute("aria-busy");
+        }
       }
     };
   });
@@ -1460,21 +1487,34 @@ async function manageEvent(eventId, options = {}) {
         bulkBtn.textContent = `Confirm delete (${photoIds.length})?`;
         return;
       }
+      if (bulkBtn.disabled) return;
       $("#manageError").textContent = "";
       bulkBtn.disabled = true;
       bulkBtn.textContent = "Deleting…";
+      bulkBtn.setAttribute("aria-busy", "true");
       try {
         const res = await api(`/api/events/${encodeURIComponent(eventId)}/photos/bulk-delete`, {
           method: "POST",
           body: JSON.stringify({ photo_ids: photoIds }),
         });
-        await Promise.all([loadDashboard(), manageEvent(eventId)]);
-        $("#manageStatus").textContent = `Deleted ${res.deleted_count} photo(s).`;
-      } catch (err) {
-        $("#manageError").textContent = err.message;
-        bulkBtn.disabled = false;
         bulkArmed = false;
-        bulkBtn.textContent = `Delete selected (${photoIds.length})`;
+        const refreshManage = isCurrentEventWorkspace() ? manageEvent(eventId) : Promise.resolve(false);
+        await Promise.all([loadDashboard(), refreshManage]);
+        if ($("#manageDialog").open && currentEventId === eventId && $("#manageStatus")) {
+          $("#manageStatus").textContent = `Deleted ${res.deleted_count} photo(s).`;
+        } else {
+          showToast(`Deleted ${res.deleted_count} photo(s).`);
+        }
+      } catch (err) {
+        if (isCurrentEventWorkspace() && $("#manageError")) $("#manageError").textContent = err.message;
+        else showToast(`Selected photos could not be deleted: ${err.message}`);
+        bulkArmed = false;
+      } finally {
+        if (bulkBtn.isConnected) {
+          bulkBtn.disabled = false;
+          bulkBtn.textContent = `Delete selected (${checkboxes.filter((cb) => cb.checked).length})`;
+          bulkBtn.removeAttribute("aria-busy");
+        }
       }
     };
   }
