@@ -9,6 +9,15 @@ let secPage = 1;
 let auditPage = 1;
 let searchTimers = {};
 let listRequestIds = { overview: 0, accounts: 0, studios: 0, security: 0, sessions: 0, audit: 0 };
+let accountDetailRequestSequence = 0;
+let studioDetailRequestSequence = 0;
+
+$("#accountDetailDialog").addEventListener("close", () => {
+  accountDetailRequestSequence += 1;
+});
+$("#studioDetailDialog").addEventListener("close", () => {
+  studioDetailRequestSequence += 1;
+});
 
 function esc(value = "") {
   return String(value).replace(/[&<>"']/g, (c) => ({
@@ -531,12 +540,34 @@ $("#accStatusFilter").onchange = () => {
 };
 
 async function inspectAccount(accountId) {
-  const d = await api(`/api/super-admin/accounts/${encodeURIComponent(accountId)}`);
+  const requestId = ++accountDetailRequestSequence;
+  const dialog = $("#accountDetailDialog");
+  const body = $("#accountDetailBody");
+  const wasOpen = dialog.open;
+  const previousFocusId = wasOpen ? document.activeElement?.id || "" : "";
+  body.setAttribute("aria-busy", "true");
+  body.innerHTML = '<div class="empty-card"><button type="button" class="close" id="accountDetailLoadingClose" aria-label="Close">×</button><h2 id="accountDetailTitle" tabindex="-1">Account details</h2><p role="status" aria-live="polite">Loading account details…</p></div>';
+  if (!wasOpen) dialog.showModal();
+  $("#accountDetailLoadingClose").onclick = () => dialog.close();
+
+  let d;
+  try {
+    d = await api(`/api/super-admin/accounts/${encodeURIComponent(accountId)}`);
+  } catch (err) {
+    if (requestId !== accountDetailRequestSequence || !dialog.open) return false;
+    body.removeAttribute("aria-busy");
+    body.innerHTML = `<div class="empty-card"><button type="button" class="close" id="accountDetailErrorClose" aria-label="Close">×</button><h2 id="accountDetailTitle" tabindex="-1">Account details unavailable</h2><p class="error" role="alert">${esc(err.message || "Account details could not be loaded.")}</p><button class="btn sm ghost" type="button" data-retry-account-detail>Retry</button></div>`;
+    $("#accountDetailErrorClose").onclick = () => dialog.close();
+    body.querySelector("[data-retry-account-detail]")?.addEventListener("click", () => inspectAccount(accountId));
+    return false;
+  }
+  if (requestId !== accountDetailRequestSequence || !dialog.open) return false;
+  body.removeAttribute("aria-busy");
   const a = d.account;
   $("#accountDetailBody").innerHTML = `
     <button type="button" class="close" id="accDetClose" aria-label="Close">×</button>
     <p class="eyebrow">ACCOUNT RECORD</p>
-    <h2>${esc(a.name)} ${roleBadge(a.role)} ${statusBadge(a.status)}</h2>
+    <h2 id="accountDetailTitle" tabindex="-1">${esc(a.name)} ${roleBadge(a.role)} ${statusBadge(a.status)}</h2>
     <p class="muted">
       ID: <code>${esc(a.id)}</code> · Registered: ${esc(a.created_at)} · Last login: ${esc(a.last_login_at || "Never")}
       ${a.mfa_enabled ? " · MFA: Enabled" : " · MFA: Off"}
@@ -648,8 +679,15 @@ async function inspectAccount(accountId) {
     }
   `;
 
-  if (!$("#accountDetailDialog").open) $("#accountDetailDialog").showModal();
-  $("#accDetClose").onclick = () => $("#accountDetailDialog").close();
+  if (!dialog.open) dialog.showModal();
+  if (wasOpen && previousFocusId) {
+    const previousFocus = document.getElementById(previousFocusId);
+    if (previousFocus && body.contains(previousFocus)) previousFocus.focus({ preventScroll: true });
+    else $("#accountDetailTitle").focus({ preventScroll: true });
+  } else {
+    $("#accDetClose").focus({ preventScroll: true });
+  }
+  $("#accDetClose").onclick = () => dialog.close();
 
   const showAccRes = (html, isErr = false) => {
     $("#accActionResult").innerHTML = `<div class="panel-box ${isErr ? "error" : "success-msg"}" role="${isErr ? "alert" : "status"}" aria-live="${isErr ? "assertive" : "polite"}">${html}</div>`;
@@ -919,6 +957,7 @@ addPendingSubmitState("setupConfirmForm", "Verifying authenticator…");
 addPendingSubmitState("saLoginForm", "Signing in…");
 addPendingSubmitState("saMfaForm", "Verifying code…");
 addPendingSubmitState("createAccountForm", "Creating account…");
+addPendingButtonState($("#openCreateAccountBtn"), "Loading studios…");
 
 
 // Studios
@@ -995,14 +1034,36 @@ $("#refreshStudiosBtn").onclick = () => {
 };
 
 async function inspectStudio(studioId) {
-  const d = await api(`/api/super-admin/studios/${encodeURIComponent(studioId)}`);
+  const requestId = ++studioDetailRequestSequence;
+  const dialog = $("#studioDetailDialog");
+  const body = $("#studioDetailBody");
+  const wasOpen = dialog.open;
+  const previousFocusId = wasOpen ? document.activeElement?.id || "" : "";
+  body.setAttribute("aria-busy", "true");
+  body.innerHTML = '<div class="empty-card"><button type="button" class="close" id="studioDetailLoadingClose" aria-label="Close">×</button><h2 id="studioDetailTitle" tabindex="-1">Studio details</h2><p role="status" aria-live="polite">Loading studio details…</p></div>';
+  if (!wasOpen) dialog.showModal();
+  $("#studioDetailLoadingClose").onclick = () => dialog.close();
+
+  let d;
+  try {
+    d = await api(`/api/super-admin/studios/${encodeURIComponent(studioId)}`);
+  } catch (err) {
+    if (requestId !== studioDetailRequestSequence || !dialog.open) return false;
+    body.removeAttribute("aria-busy");
+    body.innerHTML = `<div class="empty-card"><button type="button" class="close" id="studioDetailErrorClose" aria-label="Close">×</button><h2 id="studioDetailTitle" tabindex="-1">Studio details unavailable</h2><p class="error" role="alert">${esc(err.message || "Studio details could not be loaded.")}</p><button class="btn sm ghost" type="button" data-retry-studio-detail>Retry</button></div>`;
+    $("#studioDetailErrorClose").onclick = () => dialog.close();
+    body.querySelector("[data-retry-studio-detail]")?.addEventListener("click", () => inspectStudio(studioId));
+    return false;
+  }
+  if (requestId !== studioDetailRequestSequence || !dialog.open) return false;
+  body.removeAttribute("aria-busy");
   const s = d.studio;
   const limitMb = Math.round((s.storage_limit_bytes || 524288000) / (1024 * 1024));
 
   $("#studioDetailBody").innerHTML = `
     <button type="button" class="close" id="studioDetClose" aria-label="Close">×</button>
     <p class="eyebrow">TENANT GOVERNANCE</p>
-    <h2>${esc(s.name)} ${statusBadge(s.status)}</h2>
+    <h2 id="studioDetailTitle" tabindex="-1">${esc(s.name)} ${statusBadge(s.status)}</h2>
     <p class="muted">Owner: ${esc(s.owner_name || "None")} (${esc(s.owner_email || "—")}) · Registered: ${esc(s.created_at)}</p>
 
     <div class="manage-actions">
@@ -1077,8 +1138,15 @@ async function inspectStudio(studioId) {
     </div>
   `;
 
-  if (!$("#studioDetailDialog").open) $("#studioDetailDialog").showModal();
-  $("#studioDetClose").onclick = () => $("#studioDetailDialog").close();
+  if (!dialog.open) dialog.showModal();
+  if (wasOpen && previousFocusId) {
+    const previousFocus = document.getElementById(previousFocusId);
+    if (previousFocus && body.contains(previousFocus)) previousFocus.focus({ preventScroll: true });
+    else $("#studioDetailTitle").focus({ preventScroll: true });
+  } else {
+    $("#studioDetClose").focus({ preventScroll: true });
+  }
+  $("#studioDetClose").onclick = () => dialog.close();
 
   if ($("#studioSuspendBtn")) {
     $("#studioSuspendBtn").onclick = async () => {
@@ -1279,6 +1347,7 @@ async function loadSessions() {
         setGlobalMsg(err.message, true);
       }
     };
+    addPendingButtonState(btn, "Revoking…");
   });
 }
 
