@@ -546,8 +546,9 @@ async function inspectAccount(accountId) {
   const wasOpen = dialog.open;
   const previousFocusId = wasOpen ? document.activeElement?.id || "" : "";
   body.setAttribute("aria-busy", "true");
-  body.innerHTML = '<div class="empty-card"><h2 id="accountDetailTitle" tabindex="-1">Account details</h2><p role="status" aria-live="polite">Loading account details…</p></div>';
+  body.innerHTML = '<div class="empty-card"><button type="button" class="close" id="accountDetailLoadingClose" aria-label="Close">×</button><h2 id="accountDetailTitle" tabindex="-1">Account details</h2><p role="status" aria-live="polite">Loading account details…</p></div>';
   if (!wasOpen) dialog.showModal();
+  $("#accountDetailLoadingClose").onclick = () => dialog.close();
 
   let d;
   try {
@@ -555,7 +556,8 @@ async function inspectAccount(accountId) {
   } catch (err) {
     if (requestId !== accountDetailRequestSequence || !dialog.open) return false;
     body.removeAttribute("aria-busy");
-    body.innerHTML = `<div class="empty-card"><h2 id="accountDetailTitle" tabindex="-1">Account details unavailable</h2><p class="error" role="alert">${esc(err.message || "Account details could not be loaded.")}</p><button class="btn sm ghost" type="button" data-retry-account-detail>Retry</button></div>`;
+    body.innerHTML = `<div class="empty-card"><button type="button" class="close" id="accountDetailErrorClose" aria-label="Close">×</button><h2 id="accountDetailTitle" tabindex="-1">Account details unavailable</h2><p class="error" role="alert">${esc(err.message || "Account details could not be loaded.")}</p><button class="btn sm ghost" type="button" data-retry-account-detail>Retry</button></div>`;
+    $("#accountDetailErrorClose").onclick = () => dialog.close();
     body.querySelector("[data-retry-account-detail]")?.addEventListener("click", () => inspectAccount(accountId));
     return false;
   }
@@ -1038,8 +1040,9 @@ async function inspectStudio(studioId) {
   const wasOpen = dialog.open;
   const previousFocusId = wasOpen ? document.activeElement?.id || "" : "";
   body.setAttribute("aria-busy", "true");
-  body.innerHTML = '<div class="empty-card"><h2 id="studioDetailTitle" tabindex="-1">Studio details</h2><p role="status" aria-live="polite">Loading studio details…</p></div>';
+  body.innerHTML = '<div class="empty-card"><button type="button" class="close" id="studioDetailLoadingClose" aria-label="Close">×</button><h2 id="studioDetailTitle" tabindex="-1">Studio details</h2><p role="status" aria-live="polite">Loading studio details…</p></div>';
   if (!wasOpen) dialog.showModal();
+  $("#studioDetailLoadingClose").onclick = () => dialog.close();
 
   let d;
   try {
@@ -1047,7 +1050,8 @@ async function inspectStudio(studioId) {
   } catch (err) {
     if (requestId !== studioDetailRequestSequence || !dialog.open) return false;
     body.removeAttribute("aria-busy");
-    body.innerHTML = `<div class="empty-card"><h2 id="studioDetailTitle" tabindex="-1">Studio details unavailable</h2><p class="error" role="alert">${esc(err.message || "Studio details could not be loaded.")}</p><button class="btn sm ghost" type="button" data-retry-studio-detail>Retry</button></div>`;
+    body.innerHTML = `<div class="empty-card"><button type="button" class="close" id="studioDetailErrorClose" aria-label="Close">×</button><h2 id="studioDetailTitle" tabindex="-1">Studio details unavailable</h2><p class="error" role="alert">${esc(err.message || "Studio details could not be loaded.")}</p><button class="btn sm ghost" type="button" data-retry-studio-detail>Retry</button></div>`;
+    $("#studioDetailErrorClose").onclick = () => dialog.close();
     body.querySelector("[data-retry-studio-detail]")?.addEventListener("click", () => inspectStudio(studioId));
     return false;
   }
