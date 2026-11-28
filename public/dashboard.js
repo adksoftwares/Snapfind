@@ -12,6 +12,7 @@ let dashboardLoadSequence = 0;
 let manageEventRequestSequence = 0;
 let indexingRunSequence = 0;
 let indexingSavePromise = null;
+let photoUploadInProgress = false;
 let workspaceNavigationInitialized = false;
 
 function esc(value = "") {
@@ -972,19 +973,41 @@ async function manageEvent(eventId, options = {}) {
 
   if ($("#photoUpload")) {
     const handlePhotoUpload = async (incomingFiles) => {
+      if (photoUploadInProgress) {
+        if ($("#manageStatus")) $("#manageStatus").textContent = "A photo upload is already in progress. Please wait before starting another.";
+        return;
+      }
       const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
       const files = [...incomingFiles].filter((file) => acceptedTypes.has(file.type));
       const rejectedTypes = [...incomingFiles].filter((file) => !acceptedTypes.has(file.type));
       if (!files.length) {
-        $("#manageStatus").textContent = "";
-        if (rejectedTypes.length) $("#manageError").textContent = "Choose JPEG, PNG, WebP or GIF photo files.";
+        if ($("#manageStatus")) $("#manageStatus").textContent = "";
+        if (rejectedTypes.length && $("#manageError")) $("#manageError").textContent = "Choose JPEG, PNG, WebP or GIF photo files.";
         return;
       }
-      const unsupportedMessage = rejectedTypes.length ? "Skipped " + rejectedTypes.length + " unsupported file(s). " : "";
-      $("#manageError").textContent = "";
-      const uploadProgress = $("#uploadProgress");
-      uploadProgress.value = 0;
-      uploadProgress.classList.remove("hidden");
+
+      photoUploadInProgress = true;
+      const uploadInput = $("#photoUpload");
+      const uploadLabel = document.querySelector('label[for="photoUpload"]');
+      const dropzone = $("#photoDropzone");
+      let uploadProgress = null;
+      if (uploadInput) uploadInput.disabled = true;
+      if (uploadLabel) {
+        uploadLabel.classList.add("disabled");
+        uploadLabel.setAttribute("aria-disabled", "true");
+      }
+      if (dropzone) {
+        dropzone.classList.add("is-uploading");
+        dropzone.setAttribute("aria-disabled", "true");
+        dropzone.setAttribute("aria-busy", "true");
+      }
+
+      try {
+        const unsupportedMessage = rejectedTypes.length ? "Skipped " + rejectedTypes.length + " unsupported file(s). " : "";
+        if ($("#manageError")) $("#manageError").textContent = "";
+        uploadProgress = $("#uploadProgress");
+        uploadProgress.value = 0;
+        uploadProgress.classList.remove("hidden");
 
 
       const canIndexOnUpload = Boolean(e.ai_enabled && window.SnapFindFace);
@@ -1059,20 +1082,50 @@ async function manageEvent(eventId, options = {}) {
           uploadProgress.value = (canIndexOnUpload ? 50 : 0) + Math.round((processedOffset / files.length) * (canIndexOnUpload ? 50 : 100));
         }
 
-        await Promise.all([loadDashboard(), manageEvent(eventId)]);
-        if (allRejected.length) {
-          $("#manageError").textContent = unsupportedMessage + `Skipped ${allRejected.length} invalid file(s): ${allRejected.map((r) => r.name).join(", ")}`;
-        } else if (unsupportedMessage) {
-          $("#manageError").textContent = unsupportedMessage;
-        }
-        if (uploadedCount > 0) {
-          $("#manageStatus").textContent = canIndexOnUpload
-            ? `Uploaded ${uploadedCount} photo(s) and automatically indexed ${indexedFacesTotal} face(s).`
-            : `Uploaded ${uploadedCount} photo(s) cleanly (EXIF stripped, WebP previews ready).`;
+        const refreshManage = $("#manageDialog").open && currentEventId === eventId
+          ? manageEvent(eventId)
+          : Promise.resolve(false);
+        await Promise.all([loadDashboard(), refreshManage]);
+        const manageIsCurrent = $("#manageDialog").open && currentEventId === eventId;
+        if (manageIsCurrent) {
+          if (allRejected.length) {
+            $("#manageError").textContent = unsupportedMessage + `Skipped ${allRejected.length} invalid file(s): ${allRejected.map((r) => r.name).join(", ")}`;
+          } else if (unsupportedMessage) {
+            $("#manageError").textContent = unsupportedMessage;
+          }
+          if (uploadedCount > 0) {
+            $("#manageStatus").textContent = canIndexOnUpload
+              ? `Uploaded ${uploadedCount} photo(s) and automatically indexed ${indexedFacesTotal} face(s).`
+              : `Uploaded ${uploadedCount} photo(s) cleanly (EXIF stripped, WebP previews ready).`;
+          }
+        } else if (uploadedCount > 0) {
+          showToast(`Uploaded ${uploadedCount} photo(s) to ${e.title}.`);
         }
       } catch (err) {
-        $("#manageStatus").textContent = "";
-        $("#manageError").textContent = err.message;
+        const message = err.message || "Photo upload failed.";
+        if ($("#manageDialog").open && currentEventId === eventId) {
+          $("#manageStatus").textContent = "";
+          $("#manageError").textContent = message;
+        } else {
+          showToast(`Photo upload failed: ${message}`);
+        }
+      }
+      } finally {
+        photoUploadInProgress = false;
+        if (uploadInput?.isConnected) uploadInput.disabled = false;
+        if (uploadLabel?.isConnected) {
+          uploadLabel.classList.remove("disabled");
+          uploadLabel.removeAttribute("aria-disabled");
+        }
+        if (dropzone?.isConnected) {
+          dropzone.classList.remove("is-uploading");
+          dropzone.removeAttribute("aria-disabled");
+          dropzone.removeAttribute("aria-busy");
+        }
+        if (uploadProgress?.isConnected) {
+          uploadProgress.classList.add("hidden");
+          uploadProgress.value = 0;
+        }
       }
     };
 
@@ -1083,7 +1136,9 @@ async function manageEvent(eventId, options = {}) {
 
     const dropzone = $("#photoDropzone");
     if (dropzone) {
-      dropzone.addEventListener("click", () => $("#photoUpload").click());
+      dropzone.addEventListener("click", () => {
+        if (!photoUploadInProgress) $("#photoUpload").click();
+      });
       ["dragenter", "dragover"].forEach((eventName) => {
         dropzone.addEventListener(eventName, (ev) => {
           ev.preventDefault(); ev.stopPropagation(); dropzone.classList.add("is-dragover");
@@ -1097,9 +1152,13 @@ async function manageEvent(eventId, options = {}) {
       });
       dropzone.addEventListener("drop", (ev) => {
         ev.preventDefault(); ev.stopPropagation(); dropzone.classList.remove("is-dragover");
-        if (ev.dataTransfer && ev.dataTransfer.files.length) handlePhotoUpload(ev.dataTransfer.files);
+        if (!photoUploadInProgress && ev.dataTransfer && ev.dataTransfer.files.length) handlePhotoUpload(ev.dataTransfer.files);
       });
       dropzone.addEventListener("keydown", (ev) => {
+        if (photoUploadInProgress) {
+          if (ev.key === "Enter" || ev.key === " ") ev.preventDefault();
+          return;
+        }
         if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); $("#photoUpload").click(); }
       });
     }
