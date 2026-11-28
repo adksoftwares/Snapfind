@@ -1169,6 +1169,9 @@ $("#aiFind").onclick = async () => {
     btn.removeAttribute("aria-busy");
     $("#aiCancel").disabled = false;
     $("#aiCancel").classList.add("hidden");
+    if (aiCancelled && $("#aiConsent").checked) {
+      $("#aiStatus").textContent = "Scan stopped. No partial matches were applied.";
+    }
   }
 };
 
