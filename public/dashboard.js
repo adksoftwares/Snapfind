@@ -685,7 +685,9 @@ async function loadDashboard() {
 }
 
 async function manageEvent(eventId, options = {}) {
-  const sameOpenEvent = currentEventId === eventId && $("#manageDialog").open;
+  const dialog = $("#manageDialog");
+  const content = $("#manageContent");
+  const sameOpenEvent = currentEventId === eventId && dialog.open;
   const previousManageFocusId = sameOpenEvent ? document.activeElement?.id || "" : "";
   const previousManagePhotoQuery = sameOpenEvent ? $("#managePhotoSearch")?.value || "" : "";
   const requestId = ++manageEventRequestSequence;
@@ -694,8 +696,25 @@ async function manageEvent(eventId, options = {}) {
     indexingRunSequence += 1;
   }
   currentEventId = eventId;
-  const data = await api(`/api/events/${encodeURIComponent(eventId)}`);
-  if (requestId !== manageEventRequestSequence) return false;
+
+  content.setAttribute("aria-busy", "true");
+  content.innerHTML = '<div class="empty-card"><button class="close" id="manageLoadingClose" type="button" aria-label="Close">×</button><h2 id="manageDialogTitle" tabindex="-1">Event workspace</h2><p class="muted" role="status" aria-live="polite">Loading event details…</p></div>';
+  if (!dialog.open) dialog.showModal();
+  $("#manageLoadingClose").onclick = () => dialog.close();
+
+  let data;
+  try {
+    data = await api(`/api/events/${encodeURIComponent(eventId)}`);
+  } catch (err) {
+    if (requestId !== manageEventRequestSequence || !dialog.open) return false;
+    content.removeAttribute("aria-busy");
+    content.innerHTML = `<div class="empty-card"><button class="close" id="manageErrorClose" type="button" aria-label="Close">×</button><h2 id="manageDialogTitle" tabindex="-1">Event workspace unavailable</h2><p class="error" role="alert">${esc(err.message || "Event details could not be loaded.")}</p><button class="btn sm ghost" id="manageRetryBtn" type="button">Retry</button></div>`;
+    $("#manageErrorClose").onclick = () => dialog.close();
+    $("#manageRetryBtn").onclick = () => manageEvent(eventId, options);
+    return false;
+  }
+  if (requestId !== manageEventRequestSequence || !dialog.open) return false;
+  content.removeAttribute("aria-busy");
   if (!sameOpenEvent) indexingAbort = false;
   const e = data.event;
   const canWrite = hasPerm("events:write");
@@ -708,7 +727,7 @@ async function manageEvent(eventId, options = {}) {
     <div class="manage-sticky-head">
       <button class="close" id="manageClose" type="button" aria-label="Close">×</button>
       <p class="eyebrow">EVENT CONTROL</p>
-      <h2>${esc(e.title)} <span class="badge ${esc(e.status)}">${esc(e.status)}</span></h2>
+      <h2 id="manageDialogTitle" tabindex="-1">${esc(e.title)} <span class="badge ${esc(e.status)}">${esc(e.status)}</span></h2>
       <p class="muted">
         Access code: <b>${esc(e.access_code)}</b>
         · ${e.has_pin ? "PIN protected" : "No PIN"}
@@ -878,8 +897,13 @@ async function manageEvent(eventId, options = {}) {
     if (previousManagePhotoQuery) applyPhotoSearch();
   }
 
-  if (!$("#manageDialog").open) {
-    $("#manageDialog").showModal();
+  if (!dialog.open) dialog.showModal();
+  if (sameOpenEvent && previousManageFocusId) {
+    const previousFocus = document.getElementById(previousManageFocusId);
+    if (previousFocus && content.contains(previousFocus)) previousFocus.focus({ preventScroll: true });
+    else $("#manageDialogTitle").focus({ preventScroll: true });
+  } else {
+    $("#manageClose").focus({ preventScroll: true });
   }
 
   const unindexedOnOpen = data.photos.filter((p) => !p.face_indexed).length;
