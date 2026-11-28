@@ -115,9 +115,8 @@ function syncGuestBulkBar(visible = getVisiblePhotos()) {
   const bar = $("#guestBulkBar");
   if (!bar) return;
 
-  const existingIds = new Set(photos.map((p) => p.id));
   for (const id of [...downloadPickSet]) {
-    if (!existingIds.has(id)) downloadPickSet.delete(id);
+    if (!photoCacheById.has(id)) downloadPickSet.delete(id);
   }
 
   bar.classList.toggle("hidden", visible.length === 0);
