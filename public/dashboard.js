@@ -1015,8 +1015,9 @@ async function manageEvent(eventId, options = {}) {
       `;
     } catch (err) {
       if (!isCurrentManagePanelRequest(panelRequestId, "qrBtn")) return;
-      $("#manageError").textContent = err.message;
+      panel.innerHTML = `<div class="empty-card"><p class="error" role="alert">${esc(err.message || "QR code could not be generated.")}</p><button class="btn sm ghost" id="retryQrPanelBtn" type="button">Retry</button></div>`;
       setActiveManageTab("");
+      $("#retryQrPanelBtn").onclick = () => $("#qrBtn").click();
     } finally {
       if (isCurrentManagePanelRequest(panelRequestId, "qrBtn")) panel.removeAttribute("aria-busy");
       if (trigger.isConnected) {
@@ -1260,8 +1261,9 @@ async function manageEvent(eventId, options = {}) {
         `;
       } catch (err) {
         if (!isCurrentManagePanelRequest(panelRequestId, "selectionBtn")) return;
-        $("#manageError").textContent = err.message;
+        panel.innerHTML = `<div class="empty-card"><p class="error" role="alert">${esc(err.message || "Guest selections could not be loaded.")}</p><button class="btn sm ghost" id="retrySelectionsPanelBtn" type="button">Retry</button></div>`;
         setActiveManageTab("");
+        $("#retrySelectionsPanelBtn").onclick = () => $("#selectionBtn").click();
       } finally {
         if (isCurrentManagePanelRequest(panelRequestId, "selectionBtn")) panel.removeAttribute("aria-busy");
         if (trigger.isConnected) {
