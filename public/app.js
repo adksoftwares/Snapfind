@@ -93,6 +93,8 @@ function openAuthDialog(nextMode) {
     : 'New to SnapFind? <a href="#">Create account</a>';
   $("#authError").textContent = "";
   if (!$("#authDialog").open) $("#authDialog").showModal();
+  const focusTarget = isMfa ? $("#authMfaCode") : isRegister ? $("#authName") : $("#authEmail");
+  focusTarget?.focus({ preventScroll: true });
   if (!csrfToken) ensureCsrfToken().catch(() => {});
 }
 
