@@ -1151,12 +1151,13 @@ $("#aiFind").onclick = async () => {
         : `Scanned ${allPhotos.length} photo(s) with no strong match. Selfie stayed on device; scan was performed locally.`;
     }
 
-    matchedPhotoIds = matches;
-    matchedScoreById = scores;
     if (!currentEvent?.selfie_only) {
       await ensureMatchedPhotosLoaded(matches);
       if (aiCancelled) return;
     }
+    if (aiCancelled) return;
+    matchedPhotoIds = matches;
+    matchedScoreById = scores;
     $("#aiResetScanBtn")?.classList.remove("hidden");
     activeFilter = "matches";
     renderPhotos();
