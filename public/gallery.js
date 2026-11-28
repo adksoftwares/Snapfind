@@ -16,6 +16,7 @@ const guestKey = getGuestKey();
 let csrfToken = null;
 let currentEvent = null;
 let photos = [];
+let photoCacheById = new Map();
 let matchedPhotoIds = null;
 let matchedScoreById = new Map();
 let downloadPickSet = new Set();
@@ -52,6 +53,12 @@ function esc(value = "") {
 
 function photoTitleFallback(p) {
   return p.original_name || "Event photo";
+}
+
+function cacheGalleryPhotos(items) {
+  for (const photo of items || []) {
+    if (photo?.id) photoCacheById.set(photo.id, photo);
+  }
 }
 
 function downloadUrl(url) {
@@ -108,9 +115,8 @@ function syncGuestBulkBar(visible = getVisiblePhotos()) {
   const bar = $("#guestBulkBar");
   if (!bar) return;
 
-  const existingIds = new Set(photos.map((p) => p.id));
   for (const id of [...downloadPickSet]) {
-    if (!existingIds.has(id)) downloadPickSet.delete(id);
+    if (!photoCacheById.has(id)) downloadPickSet.delete(id);
   }
 
   bar.classList.toggle("hidden", visible.length === 0);
@@ -505,6 +511,7 @@ async function ensureMatchedPhotosLoaded(matchSet) {
   const fetched = await api(
     `/api/gallery/${encodeURIComponent(code)}?limit=100&ids=${encodeURIComponent(missingIds.slice(0, 100).join(","))}`
   );
+  cacheGalleryPhotos(fetched.photos || []);
   const existingIds = new Set(photos.map((p) => p.id));
   for (const p of fetched.photos || []) {
     if (!existingIds.has(p.id)) photos.push(p);
@@ -517,6 +524,7 @@ async function fetchAllEventPhotosForScan() {
   let pages = 1;
   do {
     const res = await api(`/api/gallery/${encodeURIComponent(code)}?page=${page}&limit=100`);
+    cacheGalleryPhotos(res.photos || []);
     all.push(...(res.photos || []));
     pages = res.pagination?.total_pages || 1;
     page += 1;
@@ -546,6 +554,8 @@ async function loadGallery(page = 1) {
   try {
     const data = await api(`/api/gallery/${encodeURIComponent(code)}?${params.toString()}`);
     if (requestId !== galleryLoadSequence) return false;
+    const lastAvailablePage = Math.max(1, Number(data.pagination?.total_pages) || 1);
+    if (page > lastAvailablePage) return loadGallery(lastAvailablePage);
 
     if (data.csrfToken) csrfToken = data.csrfToken;
     currentEvent = data.event;
@@ -576,6 +586,7 @@ async function loadGallery(page = 1) {
     $("#galleryContent").classList.remove("hidden");
 
     photos = data.photos;
+    cacheGalleryPhotos(photos);
     totalEventPhotos = Number(data.total_event_photos ?? photos.length);
     currentPage = data.pagination.page;
     totalPages = data.pagination.total_pages || 1;
@@ -771,9 +782,17 @@ $("#guestClearPickBtn").onclick = () => {
 
 
 $("#guestDownloadSelectedBtn").onclick = async () => {
-  const picked = photos.filter((p) => downloadPickSet.has(p.id));
+  const selectedIds = [...downloadPickSet];
+  const picked = selectedIds.map((id) => photoCacheById.get(id)).filter(Boolean);
+  const missingCount = selectedIds.length - picked.length;
+  if (missingCount) {
+    downloadPickSet = new Set(picked.map((photo) => photo.id));
+    syncGuestBulkBar();
+  }
+  $("#galleryError").textContent = missingCount
+    ? `${missingCount} selected photo(s) are no longer available and were removed from your download selection.`
+    : "";
   if (!picked.length) return;
-  $("#galleryError").textContent = "";
 
   if (picked.length === 1) {
     const single = picked[0];
