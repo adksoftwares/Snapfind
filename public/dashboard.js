@@ -942,8 +942,14 @@ async function manageEvent(eventId, options = {}) {
   };
 
   let activeManageTab = "";
+  let managePanelRequestSequence = 0;
   function setActiveManageTab(tabId) {
+    const changed = activeManageTab !== tabId;
     activeManageTab = tabId;
+    if (changed) {
+      managePanelRequestSequence += 1;
+      $("#dynamicPanel").removeAttribute("aria-busy");
+    }
     document.querySelectorAll(".manage-sticky-head .manage-actions button").forEach((btn) => {
       const active = Boolean(tabId) && btn.id === tabId;
       btn.classList.toggle("is-active-tab", active);
@@ -951,6 +957,14 @@ async function manageEvent(eventId, options = {}) {
     });
     const editToggle = $("#editToggleBtn");
     if (editToggle) editToggle.setAttribute("aria-expanded", String(tabId === "editToggleBtn"));
+  }
+
+  function isCurrentManagePanelRequest(panelRequestId, tabId) {
+    return panelRequestId === managePanelRequestSequence &&
+      activeManageTab === tabId &&
+      requestId === manageEventRequestSequence &&
+      currentEventId === eventId &&
+      dialog.open;
   }
 
   if ($("#editToggleBtn")) {
@@ -975,9 +989,19 @@ async function manageEvent(eventId, options = {}) {
       return;
     }
     setActiveManageTab("qrBtn");
+    const panelRequestId = managePanelRequestSequence;
+    const panel = $("#dynamicPanel");
+    const trigger = $("#qrBtn");
+    const originalLabel = trigger.textContent;
+    trigger.disabled = true;
+    trigger.textContent = "Generating QR…";
+    trigger.setAttribute("aria-busy", "true");
+    panel.setAttribute("aria-busy", "true");
+    panel.innerHTML = '<div class="panel-box"><p class="muted" role="status" aria-live="polite">Generating event QR code…</p></div>';
     try {
       const q = await api(`/api/events/${encodeURIComponent(eventId)}/qr`, { method: "POST" });
-      $("#dynamicPanel").innerHTML = `
+      if (!isCurrentManagePanelRequest(panelRequestId, "qrBtn")) return;
+      panel.innerHTML = `
         <div class="panel-box qr-panel-row">
           <img class="qr-large" src="${q.qr}" alt="Event QR Code">
           <div class="qr-panel-meta">
@@ -990,8 +1014,17 @@ async function manageEvent(eventId, options = {}) {
         </div>
       `;
     } catch (err) {
+      if (!isCurrentManagePanelRequest(panelRequestId, "qrBtn")) return;
+      panel.innerHTML = `<div class="empty-card"><p class="error" role="alert">${esc(err.message || "QR code could not be generated.")}</p><button class="btn sm ghost" id="retryQrPanelBtn" type="button">Retry</button></div>`;
       setActiveManageTab("");
-      $("#manageError").textContent = err.message;
+      $("#retryQrPanelBtn").onclick = () => $("#qrBtn").click();
+    } finally {
+      if (isCurrentManagePanelRequest(panelRequestId, "qrBtn")) panel.removeAttribute("aria-busy");
+      if (trigger.isConnected) {
+        trigger.disabled = false;
+        trigger.textContent = originalLabel;
+        trigger.removeAttribute("aria-busy");
+      }
     }
   };
 
@@ -1190,9 +1223,19 @@ async function manageEvent(eventId, options = {}) {
         return;
       }
       setActiveManageTab("selectionBtn");
+      const panelRequestId = managePanelRequestSequence;
+      const panel = $("#dynamicPanel");
+      const trigger = $("#selectionBtn");
+      const originalLabel = trigger.textContent;
+      trigger.disabled = true;
+      trigger.textContent = "Loading selections…";
+      trigger.setAttribute("aria-busy", "true");
+      panel.setAttribute("aria-busy", "true");
+      panel.innerHTML = '<div class="panel-box"><p class="muted" role="status" aria-live="polite">Loading guest selections…</p></div>';
       try {
         const res = await api(`/api/events/${encodeURIComponent(eventId)}/selections`);
-        $("#dynamicPanel").innerHTML = `
+        if (!isCurrentManagePanelRequest(panelRequestId, "selectionBtn")) return;
+        panel.innerHTML = `
           <div class="panel-box">
             <h3>Guest selections (${res.selections.length})</h3>
             <div class="selection-list">
@@ -1217,8 +1260,17 @@ async function manageEvent(eventId, options = {}) {
           </div>
         `;
       } catch (err) {
+        if (!isCurrentManagePanelRequest(panelRequestId, "selectionBtn")) return;
+        panel.innerHTML = `<div class="empty-card"><p class="error" role="alert">${esc(err.message || "Guest selections could not be loaded.")}</p><button class="btn sm ghost" id="retrySelectionsPanelBtn" type="button">Retry</button></div>`;
         setActiveManageTab("");
-        $("#manageError").textContent = err.message;
+        $("#retrySelectionsPanelBtn").onclick = () => $("#selectionBtn").click();
+      } finally {
+        if (isCurrentManagePanelRequest(panelRequestId, "selectionBtn")) panel.removeAttribute("aria-busy");
+        if (trigger.isConnected) {
+          trigger.disabled = false;
+          trigger.textContent = originalLabel;
+          trigger.removeAttribute("aria-busy");
+        }
       }
     };
   }
